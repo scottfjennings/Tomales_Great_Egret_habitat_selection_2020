@@ -6,9 +6,9 @@ Analysis of habitat selection by GPS tagged Great Egrets on Tomales Bay, CA
 ## code  
 
 *main analysis code*  
-*analysis has multiple parts*
-  + habitat selection  
-  + movement/behavior
+The analysis has 2 parts, each part having multiple code files.  
+
+1. habitat selection  
 
 * hab_sel_1_combine_data_for_iSSF.R - First step in habitat selection analysis. Assign habitat and elevation values to each GPS location  
 
@@ -17,6 +17,8 @@ Analysis of habitat selection by GPS tagged Great Egrets on Tomales Bay, CA
   Avgar, T., Lele, S. R., Keim, J. L., & Boyce, M. S. (2017). Relative Selection Strength: Quantifying effect size in habitat- and step-selection inference. Ecology and Evolution, 7(14), 5322–5330. https://doi.org/10.1002/ece3.3122  
   
 * hab_sel_3_model_results.R - Read RDS model objects, view coefficients, etc. Generate plots to show relative selection of each habitat.
+
+2. movement/behavior  
 
 
 *helper code*
