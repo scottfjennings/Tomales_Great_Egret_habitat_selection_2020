@@ -18,7 +18,9 @@ The analysis has 2 parts, each part having multiple code files.
   
 * hab_sel_3_model_results.R - Read RDS model objects, view coefficients, etc. Generate plots to show relative selection of each habitat.
 
-2. movement/behavior  
+2. movement/behavior 
+
+* behav_1_combine_data.R - combine ODBA (calculated in hetp_data_work/code_HETP/data_management/add_covariates.R) with habitat values
 
 
 *helper code*
