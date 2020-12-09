@@ -52,15 +52,16 @@ make_step_lengths_speed <- function(zbird) {
 greg_track <- hetp_for_habitat_sel %>% 
   filter(bird == zbird) %>% 
   amt::make_track(utm.easting, utm.northing, timestamp, crs = sp::CRS("+init=epsg:32710"), water.level = water.level, inlight = inlight) %>% 
-  amt::extract_covariates(tomales_habitat, where = "end") %>% 
-  amt::extract_covariates(tomales_dem_bathy, where = "end") %>% 
-  rename(habitat.type = Marigear_Eelgrass_CARI_mo,
-         elevation = tomales_dem_bathy_max)
-greg_steps <- cbind(greg_track, 
-                    data.frame(sl = step_lengths(greg_track)), 
-                    data.frame(ss = amt::speed(greg_track))) %>% 
-  mutate(step.time = lead(t_) - t_)
-
+  steps() %>% 
+  mutate(ta.deg = as_degree(ta_),
+         ta.deg.abs = abs(ta.deg)) %>% 
+  mutate(speed = sl_ / as.numeric(dt_)) %>% 
+  amt::extract_covariates(tomales_habitat, where = "both") %>% 
+  amt::extract_covariates(tomales_dem_bathy, where = "both") %>% 
+  rename(habitat.type.start = Marigear_Eelgrass_CARI_mo_start,
+         habitat.type.end = Marigear_Eelgrass_CARI_mo_end,
+         elevation.start = tomales_dem_bathy_max_start,
+         elevation.end = tomales_dem_bathy_max_end) 
 }
 
 
@@ -75,6 +76,7 @@ saveRDS(all_greg_odba_habitat, "derived_data/birds/odba_habitat")
 
 
 all_greg_lengths_speeds <- map_df(wild_gregs$bird, make_step_lengths_speed) %>% 
-  full_join(., dplyr::select(hab_names_df, coarse.name, habitat.type = Value))
+  full_join(., dplyr::select(hab_names_df, coarse.name.start = coarse.name, habitat.type.start = Value)) %>% 
+  full_join(., dplyr::select(hab_names_df, coarse.name.end = coarse.name, habitat.type.end = Value))
 
 saveRDS(all_greg_lengths_speeds, "derived_data/birds/lengths_speeds")
