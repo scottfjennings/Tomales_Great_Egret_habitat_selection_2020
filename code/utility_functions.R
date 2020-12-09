@@ -21,6 +21,7 @@ speed.buffer = 0.5
 lowest_flight_speed_ms = (35.8 * speed.buffer)/ 3.6
 
 # habitat raster classifications
+make_hab_names_df <- function() {
 hab_names_matrix <- matrix(c(-999, "NA", "NA", 10,  "NA",
                              0, "NA", "NA", 11, "NA",
                              1, 1, "shellfish.footprint", 1, "shellfish.footprint", 
@@ -42,7 +43,8 @@ hab_names_matrix <- matrix(c(-999, "NA", "NA", 10,  "NA",
 hab_names_df <- data.frame(hab_names_matrix) %>% 
   rename(old.num = 1, new.num = 2, fine.name = 3, coarse.num = 4, coarse.name = 5) %>% 
   mutate(old.num = as.numeric(as.character(old.num)), new.num = as.numeric(as.character(new.num)), coarse.num = as.numeric(as.character(coarse.num)))
-
+}
+hab_names_df <- make_hab_names_df()
 
 ft2m <- function(x) { x  / 3.28084}
 m2ft <- function(x) { x  * 3.28084}
