@@ -1,0 +1,54 @@
+---
+title: "Habitat classification table"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r }
+make_hab_names_df <- function() {
+hab_names_matrix <- matrix(c(-999, "NA", "NA", 10,  "NA",
+                             0, "NA", "NA", 11, "NA",
+                             1, 1, "shellfish.footprint", 1, "shellfish.footprint", 
+                             100, 2, "eelgrass", 2,  "eelgrass", 
+                             11000, 3, "estuarine.intertidal", 3, "intertidal", 
+                             15000, 4, "tidal.marsh", 3, "intertidal", 
+                             18000, 5, "estuarine.subtidal", 4, "subtidal", 
+                             21000, 6, "pond.and.vegetation", 5, "freshwater.wetland", 
+                             22000, 6, "pond.and.vegetation", 5, "freshwater.wetland", 
+                             24000, 6, "pond.and.vegetation", 5, "freshwater.wetland", 
+                             28000, 6, "pond.and.vegetation", 5, "freshwater.wetland", 
+                             29000, 7, "slope.seep", 5, "freshwater.wetland", 
+                             30000, 8, "fluvial.channel", 5, "freshwater.wetland", 
+                             39000, 9, "estuarine.pond", 3, "intertidal", 
+                             40000, 10, "tidal.channel", 4, "subtidal", 
+                             44000, 11, "fluvial.channel", 6, "freshwater.channel"), ncol = 5, byrow=TRUE)
+
+
+hab_names_df <- data.frame(hab_names_matrix) %>% 
+  rename(old.num = 1, new.num = 2, fine.name = 3, coarse.num = 4, coarse.name = 5) %>% 
+  mutate(old.num = as.numeric(as.character(old.num)), new.num = as.numeric(as.character(new.num)), coarse.num = as.numeric(as.character(coarse.num)))
+}
+hab_names_df <- make_hab_names_df()
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+hab_names_df %>% 
+  distinct(fine.name, coarse.name) %>% 
+  filter(!is.na(coarse.name), coarse.name != "freshwater.wetland")
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
