@@ -36,6 +36,24 @@ test_hab <- distinct(all_greg_dat, bird, habitat) %>%
   mutate(fff = 1) %>% 
   pivot_wider(id_cols = bird, names_from = habitat, values_from = fff)
 
+
+# look at number of used vs available for all habitats
+# this adapted from appendix A of Fieberg, J., Signer, J., Smith, B.J. and Avgar, T., 2020. A “How-to” Guide for Interpreting Parameters in Resource-and Step-Selection Analyses. bioRxiv.
+# https://www.biorxiv.org/content/10.1101/2020.11.12.379834v1.abstract
+all_greg_dat %>%  
+  data.frame() %>% 
+  dplyr::group_by(case_, habitat) %>% 
+  summarize(n = n()) %>% 
+  mutate(prop = n / sum(n), 
+         label = paste0(round(prop * 100, 1), "%")) %>% 
+  ggplot(aes(habitat, prop, fill = case_, group=case_,label = label)) + 
+  geom_col(position = position_dodge2()) +
+  geom_text(size = 4, vjust = -0.25, position = position_dodge(width = 1)) +
+  labs(x = "habitat", y = "Proportion", fill = "case_")+
+  scale_fill_brewer(palette = "Paired", name="case_", 
+                    breaks=c("FALSE", "TRUE"), labels=c("Available", "Used")) +
+  theme_light() 
+
 # naive used/available --
 zzz <- table(all_greg_dat$habitat, all_greg_dat$case_) %>% 
   data.frame() %>% 
