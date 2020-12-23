@@ -18,7 +18,7 @@ wild_gregs <- data.frame(bird = paste("GREG_", seq(1:11), sep = ""))
 # speed buffer is a multiplier to buffer below the average flight speed, currently using 0.5, so we keep all steps that slower than half the (lower reported) average flight speed
 
 speed.buffer = 0.5
-lowest_flight_speed_ms = (35.8 * speed.buffer)/ 3.6
+lowest_flight_speed_ms = round((35.8 * speed.buffer)/ 3.6, 0)
 
 # habitat raster classifications
 make_hab_names_df <- function() {
