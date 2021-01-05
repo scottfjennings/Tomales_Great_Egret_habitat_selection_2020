@@ -16,15 +16,17 @@ source("code/utility_functions.r")
 
 greg_steps_habitat <- readRDS("derived_data/amt_bursts/greg_steps_habitat")
 
-# data cleaning
+# data cleaning ----
 
 wild_gregs <- wild_gregs %>% 
-  filter(!bird %in% c("GREG_4", "GREG_7", "GREG_9")) # see notes below for excluding these birds
+  filter(!bird %in% c("GREG_4", "GREG_7", "GREG_9", "GREG_11")) # GREG_4 doesn't have enough points at all for analysis. 7, 9 and 11 don't have enough points in particular habitats (generally shellfish and subtidal) for coxph models.
 
 #  need to fix the classification of some raster cells based on their elevation and tide heights. 
 # Point Reyes lowest observed tide = -2.69; highest observed = 8.54
 # lowest elevation in LiDAR DEM = -1.38
 sub_inter_bound = -2.69
+
+
 
 # I don't quite understand the math justification for the movement parms transformations, but this is what the amt peeps do in their papers
 
@@ -34,12 +36,13 @@ greg_steps_habitat <- greg_steps_habitat %>%
   drop_na(c("habitat.start", "habitat.end", "elevation.start", "elevation.end")) %>% 
   filter(habitat.start != "freshwater.wetland", habitat.end != "freshwater.wetland") %>% 
   filter(bird != "GREG_4") %>% 
-  mutate(habitat.start = case_when(habitat.start %in% c("intertidal", "subtidal") & elevation.start < sub_inter_bound ~ "subtidal",
-                             habitat.start %in% c("intertidal", "subtidal") & elevation.start >= sub_inter_bound ~ "intertidal",
-                             TRUE ~ as.character(habitat.start)),
-         habitat.end = case_when(habitat.end %in% c("intertidal", "subtidal") & elevation.end < sub_inter_bound ~ "subtidal",
-                             habitat.end %in% c("intertidal", "subtidal") & elevation.end >= sub_inter_bound ~ "intertidal",
-                             TRUE ~ as.character(habitat.start))) %>% 
+  filter(elevation.end < 10) %>% 
+  mutate(habitat.start = as.character(habitat.start),
+         habitat.start = ifelse(habitat.start == "intertidal" & elevation.start < sub_inter_bound, "subtidal", habitat.start),
+         habitat.start = ifelse(habitat.start == "subtidal" & elevation.start >= sub_inter_bound, "intertidal", habitat.start)) %>% 
+  mutate(habitat.end = as.character(habitat.end),
+         habitat.end = ifelse(habitat.end == "intertidal" & elevation.end < sub_inter_bound, "subtidal", habitat.end),
+         habitat.end = ifelse(habitat.end == "subtidal" & elevation.end >= sub_inter_bound, "intertidal", habitat.end)) %>% 
   mutate(depth.end = round(water.level_end, 2) - round(elevation.end, 2)) %>% 
   mutate(cos_ta_ = cos(ta_),
          log_sl_ = log(sl_)) %>% 
@@ -48,18 +51,38 @@ greg_steps_habitat <- greg_steps_habitat %>%
          habitat.end = as.factor(habitat.end),
          habitat.end = relevel(habitat.end, "subtidal"))
 
-# look at number of used vs available for all habitats ----
+# data checking ----
+# extract highest and lowest water depths for each habitat
+habitat_depths <- greg_steps_habitat %>% 
+  data.frame() %>% 
+  group_by(habitat.end) %>% 
+  summarise(min.depth = min(depth.end),
+            max.depth = max(depth.end)) %>% 
+  mutate(max.depth2 = floor(max.depth / 0.5) * 0.5)
+
+
+
+greg_steps_habitat %>% 
+  data.frame() %>% 
+  filter(case_ == TRUE, habitat.end != "subtidal") %>% 
+  ggplot() +
+  geom_point(aes(x = x2_, y = y2_, color = elevation.end)) +
+  facet_wrap(~habitat.end)
+
+filter(greg_steps_habitat, habitat.start == "intertidal" & elevation.start < sub_inter_bound) %>% view()
+filter(greg_steps_habitat, habitat.end %in% c("intertidal", "subtidal"), depth.end < -5) %>% dplyr::select(habitat.end, elevation.end, water.level_end, depth.end) %>% view()
+# look at number of used vs available for all habitats
 # this adapted from appendix A of Fieberg, J., Signer, J., Smith, B.J. and Avgar, T., 2020. A “How-to” Guide for Interpreting Parameters in Resource-and Step-Selection Analyses. bioRxiv.
 # https://www.biorxiv.org/content/10.1101/2020.11.12.379834v1.abstract
 
-# zbird = "GREG_2"
+# zbird = "GREG_11"
 greg_steps_habitat %>%  
   data.frame() %>% 
   filter(bird == zbird) %>% 
   dplyr::group_by(case_, habitat.end) %>% 
   summarize(n = n()) %>% 
   mutate(prop = n / sum(n), 
-         label = paste0(round(prop * 100, 1), "%")) %>% 
+         label = paste0(round(prop * 100, 1), "%")) %>% view()
   ggplot(aes(habitat.end, prop, fill = case_, group=case_,label = label)) + 
   geom_col(position = position_dodge2()) +
   geom_text(size = 4, vjust = -0.25, position = position_dodge(width = 1)) +
@@ -81,21 +104,23 @@ day_roost <- greg_steps_habitat %>%
             num.steps = n()) %>% 
   ungroup() %>% 
   mutate(burst.speed = burst.dist/as.numeric(burst.time))
+# not really - most bursts are composed of steps that are longer than the GPS error we filtered with (10m), and thus mostly represent true movements greater than this distance
+# most of the day roosting points are likely excluded by excluding points outside tidal areas
 
+# model fitting ----
+# starting out with objective 1, comparing relative habitat selection between habitats.
+# testing prediction that egrets experience or perceive eelgrass as more valuable than shellfish areas (higher selection for eelgrass)
 
-# starting out with objective 1, comparing relative habitat selection between habitats. ----
-# testing prediction that egrets experience or percieve eelgrass as more valuable than shellfish areas (higher selection for eelgrass)
+# seems reasonable to only use the habXmov model for inference for both objectives - most coefficient estimates are very similar between the 2 models
+# but, interpretation of habitat selection is easier without habitat.start in the model, so using mod without habitat:movement interaction for that
+
 
 # need to fit models for each bird separately, hence functions and purrr::map() call
 # this is following the examples in appendix B of Fieberg at al 2020
 # use habitat at end of step as predictor of selection 
 # see also Signer, J., J. Fieberg, and T. Avgar. 2019. Animal movement tools (amt): R package for managing tracking data and conducting habitat selection analyses. Ecology and Evolution 9:880–890.
 
-# fitting 4 models to test 4 specific questions about habitat selection
-# simpler linear water depth effect doesn't seem biologically likely so not fitting any models with that structure.
-# only varying model structure for habitat and water depth; retaining all movement parms in all models.
-
-# model 1 (fullest model) - habitat * water depth^2 - does relative selection differ between habitats and does selection of optimal water depth differ between habitats?
+# habitat * water depth^2 - does relative selection differ between habitats and does selection of optimal water depth differ between habitats?
 fit_full_mod <- function(zbird) {
 mod <- greg_steps_habitat %>% 
   filter(bird == zbird) %>% 
@@ -107,6 +132,12 @@ mod <- greg_steps_habitat %>%
 saveRDS(mod, paste("mod_objects/combined/", zbird, "_full", sep = ""))
 }
 
+
+clog_mod <- greg_steps_habitat %>% 
+  filter(bird == zbird) %>% 
+  clogit(case_ ~ habitat.end * (depth.end + I(depth.end^2)) + 
+             sl_ + log_sl_ + cos_ta_ + 
+             strata(step_id_), model = TRUE)
 
 map(wild_gregs$bird, fit_full_mod)
 
@@ -134,67 +165,6 @@ map(wild_gregs$bird, fit_full_mod)
 # this may also be because too few points in shellfish
 
 
-# model 2 - habitat + water dept^2 - does relative selection differ between habitats and is there a single optimal water depth shared among all habitats?
-fit_hab_depth2 <- function(zbird) {
-mod <- greg_steps_habitat %>% 
-  filter(bird == zbird) %>% 
-  fit_issf(case_ ~ habitat.end + depth.end + I(depth.end^2) + 
-             sl_ + log_sl_ + cos_ta_ + 
-             strata(step_id_), model = TRUE)
-
-saveRDS(mod, paste("mod_objects/combined/", zbird, "_hab_depth2", sep = ""))
-}
-
-map(wild_gregs$bird, fit_hab_depth2)
-#
-
-
-# model 3 - habitat - does relative selection differ between habitats, regardless of water depth?
-fit_hab <- function(zbird) {
-mod <- greg_steps_habitat %>% 
-  filter(bird == zbird) %>% 
-  fit_issf(case_ ~ habitat.end + 
-             sl_ + log_sl_ + cos_ta_ + 
-             strata(step_id_), model = TRUE)
-
-# 
-saveRDS(mod, paste("mod_objects/combined/", zbird, "_hab", sep = ""))
-}
-
-map(wild_gregs$bird, fit_hab)
-#
-# model 4 - water dept^2 - do egrets select for an optimal water depth, regardless of habitat?
-fit_depth2 <- function(zbird) {
-mod <- greg_steps_habitat %>% 
-  filter(bird == zbird) %>% 
-  fit_issf(case_ ~ depth.end + I(depth.end^2) + 
-             sl_ + log_sl_ + cos_ta_ + 
-             strata(step_id_), model = TRUE)
-
-saveRDS(mod, paste("mod_objects/combined/", zbird, "_depth2", sep = ""))
-}
-
-map(wild_gregs$bird, fit_depth2)
-#
-
-# model comparison for candidate models for first objective
-
-compare_mods_obj1 <- function(zbird) {
-  
-  mod1 <- readRDS(paste("mod_objects/combined/", zbird, "_full", sep = ""))
-  mod2 <- readRDS(paste("mod_objects/combined/", zbird, "_hab_depth2", sep = ""))
-  mod3 <- readRDS(paste("mod_objects/combined/", zbird, "_hab", sep = ""))
-  mod4 <- readRDS(paste("mod_objects/combined/", zbird, "_depth2", sep = ""))
-  
-  anova(mod1, mod2, mod3, mod4)
-  
-#aictab(list(mod1, mod2, mod3, mod4), modnames = c("hab.depth2", "hab_depth2", "hab", "depth2"))
-  
-  
-}
-
-compare_mods_obj1("GREG_1")
-
 # now fit the same candidate set of models but with the habitat:movement interactions ----
 # these models include the interaction between starting habitat and movement parms to see if movement characteristics differ between habitats
 
@@ -208,75 +178,59 @@ mod <- greg_steps_habitat %>%
              strata(step_id_), model = TRUE)
 
 # 
-saveRDS(mod, paste("mod_objects/combined/", zbird, "_full_hab.mov", sep = ""))
+saveRDS(mod, paste("mod_objects/combined/", zbird, "_full_habXmov", sep = ""))
 }
 
 
 map(wild_gregs$bird, fit_full_mod_hab.mov)
 
-fit_full_mod_hab.mov("GREG_4")
+# fit_full_mod_hab.mov("GREG_4")
 #
 
+# compare coefficients between models with and without the habitat:movement interactions ----
+
+compare_coefs <- function(zbird) {
+
+  full <- readRDS(paste("mod_objects/combined/", zbird, "_full", sep = ""))
+  full_habXmov <- readRDS(paste("mod_objects/combined/", zbird, "_full_habXmov", sep = ""))
 
 
-
-# fit reduced models 
-
-fit_hab_depth2_hab_mov <- function(zbird) {
-mod <- greg_steps_habitat %>% 
-  filter(bird == zbird) %>% 
-  fit_issf(case_ ~ habitat.end + depth.end + I(depth.end^2) + 
-             sl_ + log_sl_ + cos_ta_ + 
-             habitat.start:(sl_ + log_sl_ + cos_ta_) +
-             strata(step_id_), model = TRUE)
-
-saveRDS(mod, paste("mod_objects/combined/", zbird, "_hab_depth2_hab_mov", sep = ""))
-}
-
-
-map(wild_gregs$bird, fit_hab_depth2_hab_mov)
-#
-
-fit_hab_depth_hab.mov <- function(zbird) {
-mod <- greg_steps_habitat %>% 
-  filter(bird == zbird) %>% 
-  fit_issf(case_ ~ habitat.end + depth.end + 
-             sl_ + log_sl_ + cos_ta_ + 
-             habitat.start:(sl_ + log_sl_ + cos_ta_) +
-             strata(step_id_), model = TRUE)
-
-saveRDS(mod, paste("mod_objects/combined/", zbird, "_hab_depth_hab.mov", sep = ""))
-}
-
-
-map(wild_gregs$bird, fit_hab_depth_hab_mov)
-#
-
-fit_hab <- function(zbird) {
-mod <- greg_steps_habitat %>% 
-  filter(bird == zbird) %>% 
-  fit_issf(case_ ~ habitat.end + 
-             sl_ + log_sl_ + cos_ta_ + 
-             habitat.start:(sl_ + log_sl_ + cos_ta_) +
-             strata(step_id_), model = TRUE)
-
-saveRDS(mod, paste("mod_objects/combined/", zbird, "_hab_depth_hab.mov", sep = ""))
-}
-
-
-map(wild_gregs$bird, fit_hab)
-#
-
-#
-#look at how many used/avail points there are for each bird X habitat ----
-greg_steps_habitat %>%  
+full_coef <- full$model$coefficients %>% 
   data.frame() %>% 
-  dplyr::group_by(bird, case_, habitat.end) %>% 
-  summarize(n = n()) %>% 
-  ungroup() %>% 
-  mutate(case_ = ifelse(case_ == TRUE, "used", "avail")) %>% 
-  pivot_wider(names_from = c("case_"), values_from = c("n")) %>% 
-  mutate(num.points = paste(used, avail, sep = " / ")) %>% 
-  dplyr::select(-used, -avail) %>% 
-  pivot_wider(names_from = habitat.end, values_from = num.points) %>% 
-  view()
+  rownames_to_column("varb") %>% 
+  rename(full = 2)
+
+full_habXmov_coef <- full_habXmov$model$coefficients %>% 
+  data.frame() %>% 
+  rownames_to_column("varb") %>% 
+  rename(full_habXmov = 2)
+
+comp_coefs <- full_join(full_coef, full_habXmov_coef, by = "varb") %>% 
+  mutate(comp.coefs = exp(full) - exp(full_habXmov),
+         bird = zbird)
+}
+
+comp_coefs_all <- map_df(wild_gregs$bird, compare_coefs)
+
+comp_coefs_all %>% 
+  filter(!is.na(comp.coefs)) %>% 
+  ggplot() +
+  geom_point(aes(x = bird, y = comp.coefs))
+
+
+
+# check coefs and se in full mod
+get_full_mod_coefs <- function(zbird) {
+
+  full <- readRDS(paste("mod_objects/combined/", zbird, "_full", sep = ""))
+
+
+full_coef <- summary(full)$coefficients %>% 
+  data.frame() %>% 
+  rownames_to_column("varb") %>% 
+  mutate(bird = zbird)
+}
+
+full_mod_coefs <- map_df(wild_gregs$bird, get_full_mod_coefs)
+
+
