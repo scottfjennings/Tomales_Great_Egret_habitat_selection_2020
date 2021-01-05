@@ -29,6 +29,7 @@ library(raster)
 #options(scipen = 999)
 source("C:/Users/scott.jennings/Documents/Projects/hetp/hetp_data_work/code_HETP/data_management/hetp_utility_functions.r")
 source("code/utility_functions.r")
+
 # !!! set seed important so we get the same results each time random steps are generated
 set.seed(1)
 
@@ -176,6 +177,8 @@ greg_burst_all_dat %>%
   filter(y1_ > 4229000, x1_ < 505500) %>% 
   ggplot(.) +
   geom_point(aes(x = x1_, y = y1_, color = habitat.type))
+
+
 
 
 # check to make sure there are real data points for all levels of the varbs
