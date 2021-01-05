@@ -8,6 +8,7 @@
 library(tidyverse)
 library(amt)
 library(lubridate)
+library(AICcmodavg)
 source("code/utility_functions.r")
 
 #greg_dat_dist <- distinct(greg_dat)
@@ -52,6 +53,13 @@ greg_steps_habitat <- greg_steps_habitat %>%
          habitat.end = relevel(habitat.end, "subtidal"))
 
 # data checking ----
+
+# mean step length and turn angle; used later for making model predictions
+greg_steps_habitat %>% 
+  filter(!is.na(ta_)) %>% 
+  summarise(mean_sl_ = mean(sl_), # 127
+            mean_ta_ = mean(ta_)) # close enough to 1
+
 # extract highest and lowest water depths for each habitat
 habitat_depths <- greg_steps_habitat %>% 
   data.frame() %>% 
@@ -121,25 +129,21 @@ day_roost <- greg_steps_habitat %>%
 # see also Signer, J., J. Fieberg, and T. Avgar. 2019. Animal movement tools (amt): R package for managing tracking data and conducting habitat selection analyses. Ecology and Evolution 9:880–890.
 
 # habitat * water depth^2 - does relative selection differ between habitats and does selection of optimal water depth differ between habitats?
-fit_full_mod <- function(zbird) {
-mod <- greg_steps_habitat %>% 
+fit_hab.depth2 <- function(zbird) {
+hab.depth2 <- greg_steps_habitat %>% 
   filter(bird == zbird) %>% 
   fit_issf(case_ ~ habitat.end * (depth.end + I(depth.end^2)) + 
              sl_ + log_sl_ + cos_ta_ + 
              strata(step_id_), model = TRUE)
 
 # 
-saveRDS(mod, paste("mod_objects/combined/", zbird, "_full", sep = ""))
+saveRDS(hab.depth2, paste("mod_objects/combined/", zbird, "_habXdepth2", sep = ""))
 }
 
 
-clog_mod <- greg_steps_habitat %>% 
-  filter(bird == zbird) %>% 
-  clogit(case_ ~ habitat.end * (depth.end + I(depth.end^2)) + 
-             sl_ + log_sl_ + cos_ta_ + 
-             strata(step_id_), model = TRUE)
 
-map(wild_gregs$bird, fit_full_mod)
+
+map(wild_gregs$bird, fit_hab.depth2)
 
 # zmod1 <- fit_full_mod("GREG_1")
 #
@@ -163,6 +167,79 @@ map(wild_gregs$bird, fit_full_mod)
 #   Ran out of iterations and did not converge
 
 # this may also be because too few points in shellfish
+
+
+# model 2 - habitat + water dept^2 - does relative selection differ between habitats and is there a single optimal water depth shared among all habitats?
+ 
+fit_hab_depth2 <- function(zbird) {
+ 
+hab_depth2 <- greg_steps_habitat %>% 
+  filter(bird == zbird) %>% 
+  fit_issf(case_ ~ habitat.end + depth.end + I(depth.end^2) + 
+             sl_ + log_sl_ + cos_ta_ + 
+             strata(step_id_), model = TRUE)
+ 
+saveRDS(hab_depth2, paste("mod_objects/combined/", zbird, "_hab_depth2", sep = ""))
+ 
+}
+ 
+map(wild_gregs$bird, fit_hab_depth2)
+#
+# model 3 - habitat - does relative selection differ between habitats, regardless of water depth?
+fit_hab <- function(zbird) {
+ 
+hab <- greg_steps_habitat %>% 
+  filter(bird == zbird) %>% 
+  fit_issf(case_ ~ habitat.end + 
+             sl_ + log_sl_ + cos_ta_ + 
+             strata(step_id_), model = TRUE)
+# 
+saveRDS(hab, paste("mod_objects/combined/", zbird, "_hab", sep = ""))
+}
+ 
+map(wild_gregs$bird, fit_hab)
+#
+# model 4 - water dept^2 - do egrets select for an optimal water depth, regardless of habitat?
+fit_depth2 <- function(zbird) {
+depth2 <- greg_steps_habitat %>% 
+  filter(bird == zbird) %>% 
+  fit_issf(case_ ~ depth.end + I(depth.end^2) + 
+             sl_ + log_sl_ + cos_ta_ + 
+             strata(step_id_), model = TRUE)
+
+saveRDS(depth2, paste("mod_objects/combined/", zbird, "_depth2", sep = ""))
+}
+
+map(wild_gregs$bird, fit_depth2)
+
+#
+# model comparison for candidate models for first objective
+ 
+compare_mods_obj1 <- function(zbird) {
+
+  hab.depth2 <- readRDS(paste("mod_objects/combined/", zbird, "_habXdepth2", sep = ""))
+
+  hab_depth2 <- readRDS(paste("mod_objects/combined/", zbird, "_hab_depth2", sep = ""))
+
+  hab <- readRDS(paste("mod_objects/combined/", zbird, "_hab", sep = ""))
+
+  depth2 <- readRDS(paste("mod_objects/combined/", zbird, "_depth2", sep = ""))
+
+
+mod_comp <- aictab(list(hab.depth2$model, hab_depth2$model, hab$model, depth2$model), modnames = c("hab.depth2", "hab_depth2", "hab", "depth2")) %>% 
+  data.frame() %>% 
+  mutate(bird = zbird)
+}
+
+all_aic <- map_df(wild_gregs$bird, compare_mods_obj1)
+
+#view best model for each bird
+filter(all_aic, Delta_AICc == 0) %>% view()
+# hab.depth2 is best for all k = 17
+
+# get D AICc of all second best models
+filter(all_aic, Delta_AICc != 0) %>% group_by(bird) %>%  filter(Delta_AICc == min(Delta_AICc)) %>% view()
+# deltaAICc for 2nd ranked models are between 166.8560 - 1741.5529. hab_depth2 is 2nd ranked for all birds (k = 9)
 
 
 # now fit the same candidate set of models but with the habitat:movement interactions ----
