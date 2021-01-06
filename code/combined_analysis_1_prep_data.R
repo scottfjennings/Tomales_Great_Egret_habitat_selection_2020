@@ -11,7 +11,8 @@ source("C:/Users/scott.jennings/Documents/Projects/hetp/hetp_data_work/code_HETP
 source("code/utility_functions.r")
 
 set.seed(1)
-# read habitat data ----
+# data prep ----
+# read habitat data 
 tomales_habitat <- raster("derived_data/habitat/Marigear_Eelgrass_CARI_mo.tif")
 hab_names_df <- read.csv("derived_data/habitat/Tomales_habitat_raster_key_2.csv") %>% 
   mutate(coarse.name = as.character(coarse.name))
@@ -64,9 +65,12 @@ sub_inter_bound = -2.69
 # I don't quite understand the math justification for the movement parms transformations, but this is what the amt peeps do in their papers
 
 # positive values for depth.end are below current tide level
-
+# drop_na() strips amt formatting/classes from object, filter(!is.na()), maintains amt structure
 greg_steps_habitat <- greg_steps_habitat %>% 
-  drop_na(c("habitat.start", "habitat.end", "elevation.start", "elevation.end")) %>% 
+  filter(!is.na("habitat.start")) %>% 
+  filter(!is.na("habitat.end")) %>% 
+  filter(!is.na("elevation.start")) %>% 
+  filter(!is.na("elevation.end")) %>% 
   filter(habitat.start != "freshwater.wetland", habitat.end != "freshwater.wetland") %>% 
   filter(bird != "GREG_4") %>% 
   filter(elevation.end < 10) %>% 
@@ -94,6 +98,8 @@ saveRDS(greg_steps_habitat, "derived_data/amt_bursts/greg_steps_habitat")
 #### run to here to prep data for model fitting ----
 # data checking ----
 
+greg_steps_habitat <- readRDS("derived_data/amt_bursts/greg_steps_habitat")
+
 
 # total number of used steps for each bird in each habitat
 greg_steps_habitat %>% 
@@ -105,8 +111,10 @@ greg_steps_habitat %>%
 # mean step length and turn angle; used later for making model predictions
 greg_steps_habitat %>% 
   filter(!is.na(ta_)) %>% 
+  group_by(bird) %>% 
   summarise(mean_sl_ = mean(sl_), # 127
-            mean_ta_ = mean(ta_)) # close enough to 1
+            mean_ta_ = mean(ta_), # 127
+            mean_cos_ta_ = mean(cos_ta_)) # close enough to 1
 
 # extract highest and lowest water depths for each habitat
 habitat_depths <- greg_steps_habitat %>% 
