@@ -74,6 +74,7 @@ greg_steps_habitat <- greg_steps_habitat %>%
   filter(habitat.start != "freshwater.wetland", habitat.end != "freshwater.wetland") %>% 
   filter(bird != "GREG_4") %>% 
   filter(elevation.end < 10) %>% 
+  #filter(sl_ > 1) %>% # trying to deal with negative kappa values when correcting for selection
   mutate(habitat.start = as.character(habitat.start),
          habitat.start = ifelse(habitat.start == "intertidal" & elevation.start < sub_inter_bound, "subtidal", habitat.start),
          habitat.start = ifelse(habitat.start == "subtidal" & elevation.start >= sub_inter_bound, "intertidal", habitat.start)) %>% 
@@ -86,7 +87,7 @@ greg_steps_habitat <- greg_steps_habitat %>%
   mutate(habitat.start = as.factor(habitat.start),
          habitat.start = relevel(habitat.start, "intertidal"),
          habitat.end = as.factor(habitat.end),
-         habitat.end = relevel(habitat.end, "intertidal"))
+         habitat.end = relevel(habitat.end, "intertidal")) 
 
 
 
@@ -103,18 +104,23 @@ greg_steps_habitat <- readRDS("derived_data/amt_bursts/greg_steps_habitat")
 
 # total number of used steps for each bird in each habitat
 greg_steps_habitat %>% 
+  data.frame() %>% 
   filter(case_ == TRUE) %>% 
-  group_by(bird) %>% 
+  group_by(bird, habitat.end) %>% 
   summarise(num.steps = n()) %>% 
+  ungroup() %>% 
+  pivot_wider(names_from = "habitat.end", values_from = "num.steps") %>% 
   view()
 
 # mean step length and turn angle; used later for making model predictions
 greg_steps_habitat %>% 
+  data.frame() %>% 
   filter(!is.na(ta_)) %>% 
-  group_by(bird) %>% 
+  #group_by(bird) %>% 
   summarise(mean_sl_ = mean(sl_), # 127
             mean_ta_ = mean(ta_), # 127
-            mean_cos_ta_ = mean(cos_ta_)) # close enough to 1
+            mean_cos_ta_ = mean(cos_ta_), # 127
+            cos_mean_ta_ = cos(mean_ta_)) # close enough to 1
 
 # extract highest and lowest water depths for each habitat
 habitat_depths <- greg_steps_habitat %>% 
@@ -142,14 +148,14 @@ filter(greg_steps_habitat, habitat.end %in% c("intertidal", "subtidal"), depth.e
 # this adapted from appendix A of Fieberg, J., Signer, J., Smith, B.J. and Avgar, T., 2020. A “How-to” Guide for Interpreting Parameters in Resource-and Step-Selection Analyses. bioRxiv.
 # https://www.biorxiv.org/content/10.1101/2020.11.12.379834v1.abstract
 
-# zbird = "GREG_11"
+# zbird = "GREG_1"
 greg_steps_habitat %>%  
   data.frame() %>% 
   filter(bird == zbird) %>% 
   dplyr::group_by(case_, habitat.end) %>% 
   summarize(n = n()) %>% 
   mutate(prop = n / sum(n), 
-         label = paste0(round(prop * 100, 1), "%")) %>% view()
+         label = paste0(round(prop * 100, 1), "%")) %>% 
   ggplot(aes(habitat.end, prop, fill = case_, group=case_,label = label)) + 
   geom_col(position = position_dodge2()) +
   geom_text(size = 4, vjust = -0.25, position = position_dodge(width = 1)) +
@@ -173,5 +179,23 @@ day_roost <- greg_steps_habitat %>%
   mutate(burst.speed = burst.dist/as.numeric(burst.time))
 # not really - most bursts are composed of steps that are longer than the GPS error we filtered with (10m), and thus mostly represent true movements greater than this distance
 # most of the day roosting points are likely excluded by excluding points outside tidal areas
+# update. but, negative values after adjusting von Misus concentration parms suggest there actually are a lot of times when birds are stationary  
+
+## map points per habitat
+
+greg_steps_habitat %>% 
+  data_frame() %>%
+  filter(bird == zbird, case_ == TRUE) %>% 
+  ggplot() +
+  geom_point(aes(x = x2_, y = y2_, color = habitat.end))
 
 
+
+# density curves of step lengths
+
+greg_steps_habitat %>% 
+  tibble() %>% 
+  filter(bird %in% wild_gregs$bird, case_ == TRUE, sl_ < 50) %>% 
+  ggplot() +
+  geom_density(aes(x = ta_)) +
+  facet_wrap(~habitat.end)
