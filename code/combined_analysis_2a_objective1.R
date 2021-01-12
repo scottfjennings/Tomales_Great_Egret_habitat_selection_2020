@@ -51,8 +51,7 @@ saveRDS(hab.depth2, paste("mod_objects/combined/", zbird, "_habXdepth2", sep = "
 
 map(wild_gregs$bird, fit_hab.depth2)
 
-# zmod1 <- fit_full_mod("GREG_1")
-#
+#fit_hab.depth2("GREG_1")
 
 # model won't fit for 7, 9 with error:
 
@@ -152,23 +151,26 @@ newdat_cos_ta_ = 1
 
 # Make a new data.frame for s1
 make_big_rss_est <- function(zbird) {
-    full_habXmov <- readRDS(paste("mod_objects/combined/", zbird, "_habXdepth2", sep = ""))
+    habXdepth2 <- readRDS(paste("mod_objects/combined/", zbird, "_habXdepth2", sep = ""))
 
     big_s1 <- expand.grid(depth.end = seq(-5, 3, by = 0.1),
                       habitat.end = c("intertidal", "subtidal", "eelgrass", "shellfish", "tidal.marsh")
                       ) %>% 
-  mutate(sl_ = newdat_sl_,
+  mutate(habitat.end = factor(habitat.end,
+                    levels = levels(habXdepth2$model$model$habitat.end)),
+                    sl_ = newdat_sl_,
          log_sl_ = log(newdat_sl_),
          cos_ta_ = newdat_cos_ta_)
 
 big_s2 <- data.frame(
   depth.end = 0, 
-  habitat.end = factor("intertidal", levels = c("intertidal", "subtidal", "eelgrass", "shellfish", "tidal.marsh")),
+  habitat.end = factor("intertidal", 
+                    levels = levels(habXdepth2$model$model$habitat.end)),
   sl_ = newdat_sl_,
   log_sl_ = log(newdat_sl_),
   cos_ta_ = newdat_cos_ta_)
 
-lr_g1_full <- log_rss(full_habXmov, big_s1, big_s2, ci = c("se"))$df %>% 
+lr_g1_full <- log_rss(habXdepth2, big_s1, big_s2, ci = c("se"))$df %>% 
   mutate(bird = zbird)
 
 }
@@ -180,24 +182,27 @@ big_rss <- map_df(wild_gregs$bird, make_big_rss_est)
 
 
 
+
+
 big_rss %>% 
   mutate(depth = ft2m(depth.end_x1)) %>% 
   filter(!(habitat.end_x1 == "subtidal" & depth < 0)) %>% 
   filter(!(habitat.end_x1 == "shellfish" & depth < -1.2)) %>% 
 ggplot(aes(x = depth, y = log_rss)) +
   geom_line(aes(color = habitat.end_x1)) +
-  xlab("Water depth (m)\n negative values indicate elevation above current water level") +
+  geom_ribbon(aes(x = depth, ymin = lwr, ymax = upr, fill = habitat.end_x1), alpha = 0.2) +
+  scale_color_brewer(name = "Wetland type",
+                       breaks = c("intertidal", "subtidal", "eelgrass", "shellfish", "tidal.marsh"),
+                     labels = c("Intertidal", "Subtidal", "Eelgrass", "Shellfish aquaculture", "Tidal marsh"),
+                     palette = "Set1") +
+  scale_fill_brewer(name = "Wetland type",
+                       breaks = c("intertidal", "subtidal", "eelgrass", "shellfish", "tidal.marsh"),
+                     labels = c("Intertidal", "Subtidal", "Eelgrass", "Shellfish aquaculture", "Tidal marsh"),
+                     palette = "Set1") +
+  xlab("Tide-dependent water depth (m)\n note: negative values indicate elevation above current water level") +
   ylab("log-Relative Selection Strength") +
   theme_bw() +
   facet_wrap(~bird, scales = "free")
 
-
-# peak selection depth for shellfish
-big_rss %>% 
-  filter(habitat.end_x1 == "shellfish") %>% 
-  group_by(bird) %>% 
-  filter(log_rss == max(log_rss)) %>% 
-  view()
-
-
+ggsave("figures/log_rss_fig.png", width = 8, height = 5, dpi = 300)
 
