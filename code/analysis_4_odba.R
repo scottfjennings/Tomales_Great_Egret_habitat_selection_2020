@@ -7,6 +7,7 @@
 library(tidyverse)
 library(lubridate)
 library(amt)
+library(lme4)
 #options(scipen = 999)
 source("C:/Users/scott.jennings/Documents/Projects/hetp/hetp_data_work/code_HETP/data_management/hetp_utility_functions.r")
 source("code/utility_functions.r")
@@ -20,6 +21,10 @@ tomales_dem_bathy <- raster("derived_data/habitat/tomales_dem_bathy_max.tif")
 
 # no odba for GREG 6
 wild_gregs <- filter(wild_gregs, bird != "GREG_6")
+
+# read odba conversion data (convert mv to m/s/s)
+odba_convert <- readRDS("derived_data/tag_axis_eqtn_values")
+
 
 # read data with calculated ODBA, has UTM for closest timestamped GPS location.
 # this created in hetp_data_work/code_HETP/data_management/add_covariates.R
@@ -40,31 +45,7 @@ odba_habitat <- odba_track %>%
   amt::extract_covariates(tomales_dem_bathy) %>% 
   filter(!is.na(tomales_dem_bathy_max)) %>% 
   rename(habitat.type = Marigear_Eelgrass_CARI_mo,
-         elevation = tomales_dem_bathy_max)
-
-}
-
-# calculate step lengths
-hetp_for_habitat_sel <- readRDS("derived_data/birds/wild_greg_tomales")
-
-
-make_steps_habitat <- function(zbird) {
-greg_track <- hetp_for_habitat_sel %>% 
-  filter(bird == zbird) %>% 
-  amt::make_track(utm.easting, utm.northing, timestamp, crs = sp::CRS("+init=epsg:32710"), water.level = water.level, inlight = inlight) %>% 
-  amt::track_resample(rate = minutes(30), tolerance = minutes(1)) %>%
-  amt::filter_min_n_burst() %>%
-  steps() %>% 
-  mutate(ta.deg = as_degree(ta_),
-         ta.deg.abs = abs(ta.deg)) %>% 
-  mutate(speed = sl_ / as.numeric(dt_)) %>% 
-  amt::extract_covariates(tomales_habitat, where = "both") %>% 
-  amt::extract_covariates(tomales_dem_bathy, where = "both") %>% 
-  rename(habitat.type.start = Marigear_Eelgrass_CARI_mo_start,
-         habitat.type.end = Marigear_Eelgrass_CARI_mo_end,
-         elevation.start = tomales_dem_bathy_max_start,
-         elevation.end = tomales_dem_bathy_max_end) %>% 
-  mutate(bird = zbird)
+         elevation = tomales_dem_bathy_max) 
 }
 
 
@@ -73,51 +54,59 @@ greg_track <- hetp_for_habitat_sel %>%
 
 
 all_greg_odba_habitat <- map_df(wild_gregs$bird, make_odba_habitat) %>% 
-  full_join(., dplyr::select(hab_names_df, coarse.name, habitat.type = Value))
+  full_join(., dplyr::select(hab_names_df, coarse.name, habitat.type = Value))%>% 
+  mutate(coarse.name = ifelse(coarse.name %in% c("subtidal", "intertidal"), "other.tidal", coarse.name))
+
 
 saveRDS(all_greg_odba_habitat, "derived_data/birds/odba_habitat")
 
 
-steps_habitat <- map_df(wild_gregs$bird, make_steps_habitat) %>% 
-  full_join(., dplyr::select(hab_names_df, coarse.name.start = coarse.name, habitat.type.start = Value)) %>% 
-  full_join(., dplyr::select(hab_names_df, coarse.name.end = coarse.name, habitat.type.end = Value))
 
-saveRDS(steps_habitat, "derived_data/birds/steps_habitat_30min")
+# ODBA random effect for bird ----
+odba_habitat <- readRDS("derived_data/birds/odba_habitat") %>% 
+  rename(odba = odba.timestamp, habitat = coarse.name) %>% 
+  mutate(zmonth = month(t_),
+         zmonth = as.character(zmonth),
+         habitat = as.factor(habitat),
+         habitat = relevel(habitat, "other.tidal")) %>% 
+  filter(!is.na(habitat), habitat != "freshwater.wetland")
 
+odba_mod <- lmer(odba ~ habitat + (1 | bird), data = odba_habitat, REML = F)
+odba_red <- lmer(odba ~ 1 + (1 | bird), data = odba_habitat, REML = F)
 
-# checking created data
-steps_habitat <- readRDS("derived_data/birds/steps_habitat_30min")
-
-
-
-steps_habitat %>% 
-  filter(!is.na(coarse.name.start)) %>% 
-  filter(bird != "GREG_4") %>% 
-  ungroup() %>% 
-  group_by(bird, coarse.name.start) %>% 
-  summarise(num.zero = n()) %>% 
-  spread(key = coarse.name.start, value = num.zero)
+odba_lrt <- anova(odba_red,odba_mod, test = 'LRT')
+# odba_mod gets better support
 
 
-steps_habitat %>% 
-  filter(bird != "GREG_4") %>% 
-  filter(coarse.name.start %in% c("eelgrass", "shellfish")) %>% 
-  filter(!is.na(coarse.name.start)) %>% 
-ggplot() +
-  geom_density(aes(x = sl_, fill = coarse.name.start, alpha = 0.2)) +
-  facet_wrap(~bird, scales = "free")
-
-steps_habitat %>% 
-  ungroup() %>% 
-  filter(sl_ <= 1) %>% 
-  group_by(bird) %>% 
-  summarise(num.zero = n())
+mod_coefs <- summary(odba_mod)$coefficients
+mod_ci <- confint(odba_mod)
 
 
-steps_habitat %>% 
-  filter(coarse.name.start %in% c("eelgrass", "shellfish")) %>% 
-  #filter(!is.na(coarse.name.start)) %>% 
-ggplot() +
-  geom_density(aes(x = ta_, fill = coarse.name.start, alpha = 0.2)) +
-  facet_wrap(~bird, scales = "free")
+coef_ci <- full_join(mod_coefs %>% data.frame() %>% rownames_to_column("coefficient"),
+                     mod_ci %>% data.frame() %>% rownames_to_column("coefficient")) %>% 
+  filter(!is.na(Estimate)) %>% 
+  dplyr::select(-Std..Error, -t.value) 
 
+intercept <- filter(coef_ci, coefficient == "(Intercept)")$Estimate
+
+
+estimates <- coef_ci %>% 
+  mutate(est = ifelse(coefficient == "(Intercept)", Estimate, intercept[[1]] + Estimate),
+         lwr = ifelse(coefficient == "(Intercept)", X2.5.., intercept[[1]] + X2.5..),
+         upr = ifelse(coefficient == "(Intercept)", X97.5.., intercept[[1]] + X97.5..),
+         habitat = ifelse(coefficient == "(Intercept)", "other.tidal", gsub("habitat", "", coefficient)),
+         habitat = factor(habitat, levels = c("other.tidal", "eelgrass", "shellfish", "tidal.marsh"),
+                     labels = c("Other tidal", "Eelgrass", "Shellfish aquaculture", "Tidal marsh")))
+
+ggplot(estimates) +
+  geom_point(aes(x = habitat, y = est, color = habitat)) +
+  geom_errorbar(aes(x = habitat, ymin = lwr, ymax = upr, color = habitat), width = 0.5) +
+  scale_color_brewer(breaks = c("other.tidal", "eelgrass", "shellfish", "tidal.marsh"),
+                     palette = "Set1") +
+  theme_bw() +
+  theme(legend.position = "none") +
+  xlab("Wetland type") +
+  ylab(bquote("Estimated ODBA "~ (m~ s^-1~s^-1)))
+
+
+ggsave("figures/odba_fig.png", width = 8, height = 5, dpi = 300)

@@ -154,7 +154,7 @@ make_big_rss_est <- function(zbird) {
     habXdepth2 <- readRDS(paste("mod_objects/combined/", zbird, "_habXdepth2", sep = ""))
 
     big_s1 <- expand.grid(depth.end = seq(-5, 3, by = 0.1),
-                      habitat.end = c("intertidal", "subtidal", "eelgrass", "shellfish", "tidal.marsh")
+                      habitat.end = c("other.tidal", "eelgrass", "shellfish", "tidal.marsh")
                       ) %>% 
   mutate(habitat.end = factor(habitat.end,
                     levels = levels(habXdepth2$model$model$habitat.end)),
@@ -164,7 +164,7 @@ make_big_rss_est <- function(zbird) {
 
 big_s2 <- data.frame(
   depth.end = 0, 
-  habitat.end = factor("intertidal", 
+  habitat.end = factor("other.tidal", 
                     levels = levels(habXdepth2$model$model$habitat.end)),
   sl_ = newdat_sl_,
   log_sl_ = log(newdat_sl_),
@@ -186,18 +186,18 @@ big_rss <- map_df(wild_gregs$bird, make_big_rss_est)
 
 big_rss %>% 
   mutate(depth = ft2m(depth.end_x1)) %>% 
-  filter(!(habitat.end_x1 == "subtidal" & depth < 0)) %>% 
+  #filter(!(habitat.end_x1 == "subtidal" & depth < 0)) %>% 
   filter(!(habitat.end_x1 == "shellfish" & depth < -1.2)) %>% 
 ggplot(aes(x = depth, y = log_rss)) +
   geom_line(aes(color = habitat.end_x1)) +
   geom_ribbon(aes(x = depth, ymin = lwr, ymax = upr, fill = habitat.end_x1), alpha = 0.2) +
   scale_color_brewer(name = "Wetland type",
-                       breaks = c("intertidal", "subtidal", "eelgrass", "shellfish", "tidal.marsh"),
-                     labels = c("Intertidal", "Subtidal", "Eelgrass", "Shellfish aquaculture", "Tidal marsh"),
+                       breaks = c("other.tidal", "subtidal", "eelgrass", "shellfish", "tidal.marsh"),
+                     labels = c("Other tidal", "Subtidal", "Eelgrass", "Shellfish aquaculture", "Tidal marsh"),
                      palette = "Set1") +
   scale_fill_brewer(name = "Wetland type",
-                       breaks = c("intertidal", "subtidal", "eelgrass", "shellfish", "tidal.marsh"),
-                     labels = c("Intertidal", "Subtidal", "Eelgrass", "Shellfish aquaculture", "Tidal marsh"),
+                       breaks = c("other.tidal", "eelgrass", "shellfish", "tidal.marsh"),
+                     labels = c("Other tidal", "Eelgrass", "Shellfish aquaculture", "Tidal marsh"),
                      palette = "Set1") +
   xlab("Tide-dependent water depth (m)\n note: negative values indicate elevation above current water level") +
   ylab("log-Relative Selection Strength") +

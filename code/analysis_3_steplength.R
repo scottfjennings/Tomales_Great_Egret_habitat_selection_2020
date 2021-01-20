@@ -23,7 +23,7 @@ greg_steps_habitat <- readRDS("derived_data/amt_bursts/greg_steps_habitat")
 # these models include the interaction between starting habitat and movement parms to see if movement characteristics differ between habitats
 
 
-#fit_full_mod_hab.mov <- function(zbird) {
+fit_full_mod_hab.mov <- function(zbird) {
 mod <- greg_steps_habitat %>% 
   filter(bird == zbird) %>% 
   fit_issf(case_ ~ habitat.end * (depth.end + I(depth.end^2)) + 
@@ -53,7 +53,7 @@ saveRDS(mod, paste("mod_objects/combined/", zbird, "_full_habXsl", sep = ""))
 map(wild_gregs$bird, fit_full_mod_habXsl)
 
 # and finally the interaction between habitat.start and turn angle
-#fit_full_mod_habXta <- function(zbird) {
+fit_full_mod_habXta <- function(zbird) {
 mod <- greg_steps_habitat %>% 
   filter(bird == zbird) %>% 
   fit_issf(case_ ~ habitat.end * (depth.end + I(depth.end^2)) + 
@@ -105,7 +105,7 @@ make_big_rss_est <- function(zbird) {
     habXsl <- readRDS(paste("mod_objects/combined/", zbird, "_full_habXsl", sep = ""))
 
     big_s1 <- expand.grid(depth.end = seq(-5, 3, by = 0.1),
-                      habitat.end = c("intertidal", "subtidal", "eelgrass", "shellfish", "tidal.marsh")
+                      habitat.end = c("other.tidal", "eelgrass", "shellfish", "tidal.marsh")
                       ) %>% 
   mutate(habitat.end = factor(habitat.end,
                     levels = levels(habXsl$model$model$habitat.end)),
@@ -116,7 +116,7 @@ make_big_rss_est <- function(zbird) {
 
 big_s2 <- data.frame(
   depth.end = 0, 
-  habitat.end = factor("intertidal", 
+  habitat.end = factor("other.tidal", 
                     levels = levels(habXsl$model$model$habitat.end)),
   sl_ = newdat_sl_,
   log_sl_ = log(newdat_sl_),
@@ -138,18 +138,18 @@ big_rss <- map_df(wild_gregs$bird, make_big_rss_est)
 
 big_rss %>% 
   mutate(depth = ft2m(depth.end_x1)) %>% 
-  filter(!(habitat.end_x1 == "subtidal" & depth < 0)) %>% 
+  #filter(!(habitat.end_x1 == "subtidal" & depth < 0)) %>% 
   filter(!(habitat.end_x1 == "shellfish" & depth < -1.2)) %>% 
 ggplot(aes(x = depth, y = log_rss)) +
   geom_line(aes(color = habitat.end_x1)) +
   geom_ribbon(aes(x = depth, ymin = lwr, ymax = upr, fill = habitat.end_x1), alpha = 0.2) +
   scale_color_brewer(name = "Wetland type",
-                       breaks = c("intertidal", "subtidal", "eelgrass", "shellfish", "tidal.marsh"),
-                     labels = c("Intertidal", "Subtidal", "Eelgrass", "Shellfish aquaculture", "Tidal marsh"),
+                       breaks = c("other.tidal", "eelgrass", "shellfish", "tidal.marsh"),
+                     labels = c("Other tidal", "Eelgrass", "Shellfish aquaculture", "Tidal marsh"),
                      palette = "Set1") +
   scale_fill_brewer(name = "Wetland type",
-                       breaks = c("intertidal", "subtidal", "eelgrass", "shellfish", "tidal.marsh"),
-                     labels = c("Intertidal", "Subtidal", "Eelgrass", "Shellfish aquaculture", "Tidal marsh"),
+                       breaks = c("other.tidal", "eelgrass", "shellfish", "tidal.marsh"),
+                     labels = c("Other tidal", "Eelgrass", "Shellfish aquaculture", "Tidal marsh"),
                      palette = "Set1") +
   xlab("Tide-dependent water depth (m)\n note: negative values indicate elevation above current water level") +
   ylab("log-Relative Selection Strength") +
@@ -179,18 +179,18 @@ adjust_move_parms <- function(zbird) {
   
 # first step lengths
 # intertidal step-length distribution
-intertidal_sl <- update_gamma(
+other.tidal_sl <- update_gamma(
   dist = best_mod$sl_,
   beta_sl = best_mod$model$coefficients["sl_"],
   beta_log_sl = best_mod$model$coefficients["log_sl_"])
 
 # subtidal step-length distribution
-subtidal_sl <- update_gamma(
-  dist = best_mod$sl_,
-  beta_sl = best_mod$model$coefficients["sl_"] +
-    best_mod$model$coefficients["sl_:habitat.startsubtidal"],
-  beta_log_sl = best_mod$model$coefficients["log_sl_"] +
-    best_mod$model$coefficients["log_sl_:habitat.startsubtidal"])
+#subtidal_sl <- update_gamma(
+#  dist = best_mod$sl_,
+#  beta_sl = best_mod$model$coefficients["sl_"] +
+#    best_mod$model$coefficients["sl_:habitat.startsubtidal"],
+#  beta_log_sl = best_mod$model$coefficients["log_sl_"] +
+#    best_mod$model$coefficients["log_sl_:habitat.startsubtidal"])
 
 # eelgrass step-length distribution
 eelgrass_sl <- update_gamma(
@@ -227,13 +227,13 @@ plot_sl$x <- seq(from = 1, to = 400, length.out = 400)
 
 # y-axis is the probability density under the given gamma distribution
 # intertidal
-plot_sl$intertidal <- dgamma(x = plot_sl$x, 
-                         shape = intertidal_sl$params$shape,
-                         scale = intertidal_sl$params$scale)
+plot_sl$other.tidal <- dgamma(x = plot_sl$x, 
+                         shape = other.tidal_sl$params$shape,
+                         scale = other.tidal_sl$params$scale)
 # subtidal
-plot_sl$subtidal <- dgamma(x = plot_sl$x, 
-                        shape = subtidal_sl$params$shape,
-                        scale = subtidal_sl$params$scale)
+#plot_sl$subtidal <- dgamma(x = plot_sl$x, 
+#                        shape = subtidal_sl$params$shape,
+#                        scale = subtidal_sl$params$scale)
 # eelgrass
 plot_sl$eelgrass <- dgamma(x = plot_sl$x, 
                       shape = eelgrass_sl$params$shape,
@@ -259,12 +259,12 @@ adjusted_sl <- map_df(wild_gregs$bird, adjust_move_parms)
 
 # Plot
 adjusted_sl %>% 
-  filter(step.length < 20) %>% 
+  filter(step.length < 100) %>% 
 ggplot(aes(x = step.length, y = value)) +
   geom_line(aes(color = habitat.start)) +
   scale_color_brewer(name = "Wetland type",
-                       breaks = c("intertidal", "subtidal", "eelgrass", "shellfish", "tidal.marsh"),
-                     labels = c("Intertidal", "Subtidal", "Eelgrass", "Shellfish aquaculture", "Tidal marsh"),
+                       breaks = c("other.tidal", "eelgrass", "shellfish", "tidal.marsh"),
+                     labels = c("Other tidal", "Eelgrass", "Shellfish aquaculture", "Tidal marsh"),
                      palette = "Set1") +
   xlab("Step Length (m)") +
   ylab("Probability Density") +

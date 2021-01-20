@@ -22,6 +22,7 @@ tomales_dem_bathy <- raster("derived_data/habitat/tomales_dem_bathy_max.tif")
 hetp_for_habitat_sel <- readRDS("derived_data/birds/wild_greg_tomales")
 
 
+
 # function to turn GPS data into steps/bursts, calculate step length and turn angles, and combine with habitat data
 # 10 minute sampling interval yields mean and med step lengths that are sufficiently greater than 10m (GPS error), see code chuck in misc_tasks.R
 make_combined_data <- function(zbird) {
@@ -58,7 +59,8 @@ greg_steps_habitat <- map_df(wild_gregs$bird, make_combined_data) %>%
 #  need to fix the classification of some raster cells based on their elevation and tide heights. 
 # Point Reyes lowest observed tide = -2.69; highest observed = 8.54
 # lowest elevation in LiDAR DEM = -1.38
-sub_inter_bound = -2.69
+#sub_inter_bound = -2.69
+# 1/20/2021 I decided the differentiation between intertidal and subtidal was too dependent on elevation values that were iffy. Elevations right around the boundary between the LiDAR dem and the sonar bathymetry layer seem a little suspect to me
 
 
 
@@ -74,21 +76,21 @@ greg_steps_habitat <- greg_steps_habitat %>%
   filter(habitat.start != "freshwater.wetland", habitat.end != "freshwater.wetland") %>% 
   filter(bird != "GREG_4") %>% 
   filter(elevation.end < 10) %>% 
-  #filter(sl_ > 1) %>% # trying to deal with negative kappa values when correcting for selection
-  mutate(habitat.start = as.character(habitat.start),
-         habitat.start = ifelse(habitat.start == "intertidal" & elevation.start < sub_inter_bound, "subtidal", habitat.start),
-         habitat.start = ifelse(habitat.start == "subtidal" & elevation.start >= sub_inter_bound, "intertidal", habitat.start)) %>% 
-  mutate(habitat.end = as.character(habitat.end),
-         habitat.end = ifelse(habitat.end == "intertidal" & elevation.end < sub_inter_bound, "subtidal", habitat.end),
-         habitat.end = ifelse(habitat.end == "subtidal" & elevation.end >= sub_inter_bound, "intertidal", habitat.end)) %>% 
+  #mutate(habitat.start = as.character(habitat.start),
+  #       habitat.start = ifelse(habitat.start == "intertidal" & elevation.start < sub_inter_bound, "subtidal", habitat.start),
+  #       habitat.start = ifelse(habitat.start == "subtidal" & elevation.start >= sub_inter_bound, "intertidal", habitat.start)) %>% 
+  #mutate(habitat.end = as.character(habitat.end),
+  #       habitat.end = ifelse(habitat.end == "intertidal" & elevation.end < sub_inter_bound, "subtidal", habitat.end),
+  #       habitat.end = ifelse(habitat.end == "subtidal" & elevation.end >= sub_inter_bound, "intertidal", habitat.end)) %>% 
+  mutate(habitat.end = ifelse(habitat.end %in% c("subtidal", "intertidal"), "other.tidal", habitat.end),
+         habitat.start = ifelse(habitat.start %in% c("subtidal", "intertidal"), "other.tidal", habitat.start)) %>% 
   mutate(depth.end = round(water.level_end, 2) - round(elevation.end, 2)) %>% 
   mutate(cos_ta_ = cos(ta_),
          log_sl_ = log(sl_)) %>% 
   mutate(habitat.start = as.factor(habitat.start),
-         habitat.start = relevel(habitat.start, "intertidal"),
+         habitat.start = relevel(habitat.start, "other.tidal"),
          habitat.end = as.factor(habitat.end),
-         habitat.end = relevel(habitat.end, "intertidal")) 
-
+         habitat.end = relevel(habitat.end, "other.tidal")) 
 
 
 
@@ -101,6 +103,122 @@ saveRDS(greg_steps_habitat, "derived_data/amt_bursts/greg_steps_habitat")
 
 greg_steps_habitat <- readRDS("derived_data/amt_bursts/greg_steps_habitat")
 
+# area of each wetland type in raster
+
+rast <- raster("derived_data/habitat/Marigear_Eelgrass_CARI_mo.tif")
+
+rast_ll <- projectRaster(rast, crs = "+proj=longlat +datum=WGS84", method = "ngb")
+
+tomales_dem_bathy <- raster("derived_data/habitat/tomales_dem_bathy_max.tif")
+
+tomales_dem_bathy_ll <- projectRaster(tomales_dem_bathy, crs = "+proj=longlat +datum=WGS84")
+
+
+ 
+z.extent = extent(-122.9789, -122.8083, 38.06231, 38.23470)
+
+dem.new <- resample(tomales_dem_bathy_ll, rast_ll, method = "bilinear")
+
+
+
+
+mask_rast <- rast_ll %>% crop(., z.extent)
+
+
+
+mask_dem <- dem.new %>% 
+  crop(., z.extent) 
+
+
+hab_stack <- stack(mask_rast, mask_dem)
+
+# adapted from https://gis.stackexchange.com/questions/167465/reclassifying-raster-stack-based-on-condition-and-other-layers-using-r
+#Write reclassification function
+
+rc <- function(Marigear_Eelgrass_CARI_mo, tomales_dem_bathy_max) {
+  ifelse((Marigear_Eelgrass_CARI_mo == 11 | Marigear_Eelgrass_CARI_mo == 39 | Marigear_Eelgrass_CARI_mo == 40) & tomales_dem_bathy_max < sub_inter_bound, 18, Marigear_Eelgrass_CARI_mo)
+  ifelse(Marigear_Eelgrass_CARI_mo == 18 & tomales_dem_bathy_max >= sub_inter_bound, 11, Marigear_Eelgrass_CARI_mo)
+}
+
+#Apply function to raster stack
+
+hab_stack2 <- overlay(hab_stack, fun=rc)
+
+
+
+
+hab_area_2 <- tapply(area(hab_stack2), hab_stack2[], sum) %>% 
+  data.frame() %>%  
+  rename(area.m2 = 1) %>% 
+  rownames_to_column("Value") %>% 
+  mutate(Value = as.numeric(Value)) %>% 
+  full_join(., hab_names_df) %>% 
+  filter(!is.na(coarse.name)) %>% 
+  group_by(coarse.name) %>% 
+  summarise(area.m2.alt = sum(area.m2))
+
+hab_area_ll <- tapply(area(rast_ll), rast_ll[], sum)  %>% 
+  data.frame() %>%  
+  rename(area.m2 = 1) %>% 
+  rownames_to_column("Value") %>% 
+  mutate(Value = as.numeric(Value)) %>% 
+  full_join(., hab_names_df) %>% 
+  filter(!is.na(coarse.name)) %>% 
+  mutate(coarse.name = ifelse(coarse.name %in% c("subtidal", "intertidal"), "other.tidal", coarse.name)) %>% 
+  group_by(coarse.name) %>% 
+  summarise(area.m2.ll = sum(area.m2))
+
+compare_area <- full_join(hab_area_ll, hab_area_2)
+
+compare_area %>% 
+  filter(!is.na(coarse.name)) %>% 
+  summarise(tot.area = sum(area.m2.ll),
+                           tot.area.alt = sum(area.m2.alt))
+
+
+
+
+
+values(hab_stack) %>% 
+  data.frame() %>% 
+  rename(Value = Marigear_Eelgrass_CARI_mo) %>% 
+  mutate(Value = as.numeric(Value)) %>% 
+  full_join(., hab_names_df) %>%
+  filter(!is.na(coarse.name)) %>% 
+  ggplot()+
+  geom_histogram(aes(x = tomales_dem_bathy_max), binwidth = 1) +
+  ggtitle("hab_stack") +
+  facet_wrap(~coarse.name, scales = "free")
+
+readRDS("derived_data/amt_bursts/greg_steps_habitat")%>% 
+  filter(!is.na(habitat.start), case_ == TRUE) %>% 
+  ggplot()+
+  geom_histogram(aes(x = elevation.start), binwidth = 1) +
+  ggtitle("steps_habitat") +
+  facet_wrap(~habitat.start, scales = "free")
+
+
+# number of days tracked for each bird
+greg_steps_habitat %>% 
+  data.frame() %>%  
+  mutate(date = as.Date(t1_)) %>% 
+  group_by(bird) %>% 
+  distinct(date) %>% 
+  summarise(n.days = n(),
+            min.day = min(date),
+            max.day = max(date)) %>% 
+  view()
+
+greg_steps_habitat %>% 
+  data.frame() %>%  
+  mutate(date = as.Date(t1_)) %>% 
+  group_by(bird) %>% 
+  distinct(date) %>% 
+  summarise(n.days = n()) %>% 
+  ungroup() %>% 
+  summarise(mean.days = mean(n.days)) %>% 
+  view() 
+  
 
 # total number of used steps for each bird in each habitat
 greg_steps_habitat %>% 
