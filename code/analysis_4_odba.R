@@ -8,6 +8,7 @@ library(tidyverse)
 library(lubridate)
 library(amt)
 library(lme4)
+library(nlme)
 #options(scipen = 999)
 source("C:/Users/scott.jennings/Documents/Projects/hetp/hetp_data_work/code_HETP/data_management/hetp_utility_functions.r")
 source("code/utility_functions.r")
@@ -72,11 +73,14 @@ odba_habitat <- readRDS("derived_data/birds/odba_habitat") %>%
   filter(!is.na(habitat), habitat != "freshwater.wetland")
 
 odba_mod <- lmer(odba ~ habitat + (1 | bird), data = odba_habitat, REML = F)
+odba_mod.lme <- lme(odba ~ habitat, random = ~1 | bird, data = odba_habitat)
+
 odba_red <- lmer(odba ~ 1 + (1 | bird), data = odba_habitat, REML = F)
 
 odba_lrt <- anova(odba_red,odba_mod, test = 'LRT')
 # odba_mod gets better support
 
+anova(odba_mod)
 
 mod_coefs <- summary(odba_mod)$coefficients
 mod_ci <- confint(odba_mod)
