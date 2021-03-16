@@ -9,8 +9,9 @@ library(tidyverse)
 library(amt)
 library(lubridate)
 library(AICcmodavg)
+library(gridExtra)
 source("code/utility_functions.r")
-
+source("C:/Users/scott.jennings/Documents/Projects/R_general/utility_functions/shift_label.R")
 #greg_dat_dist <- distinct(greg_dat)
 
 # read data; from combined_analysis_1_prep_data.R ----
@@ -143,13 +144,13 @@ filter(all_aic, Delta_AICc != 0) %>% group_by(bird) %>%  filter(Delta_AICc == mi
 # deltaAICc for 2nd ranked models are between 166.8560 - 1741.5529. hab_depth2 is 2nd ranked for all birds (k = 9)
 
 
+
+
+# calculate and plot relative selection strength from best model ----
 newdat_sl_ = 127
 newdat_cos_ta_ = 1
 
-
-# calculate and plot relative selection strength
-
-# Make a new data.frame for s1
+# first using a fixed value for depth in the reference level ----
 make_big_rss_est <- function(zbird) {
     habXdepth2 <- readRDS(paste("mod_objects/combined/", zbird, "_habXdepth2", sep = ""))
 
@@ -199,10 +200,77 @@ ggplot(aes(x = depth, y = log_rss)) +
                        breaks = c("other.tidal", "eelgrass", "shellfish", "tidal.marsh"),
                      labels = c("Other tidal", "Eelgrass", "Shellfish aquaculture", "Tidal marsh"),
                      palette = "Set1") +
-  xlab("Tide-dependent water depth (m)\n note: negative values indicate elevation above current water level") +
+  xlab("Tide-dependent water depth (m)/n note: negative values indicate elevation above current water level") +
   ylab("log-Relative Selection Strength") +
   theme_bw() +
   facet_wrap(~bird, scales = "free")
 
 ggsave("figures/log_rss_fig.png", width = 8, height = 5, dpi = 300)
+
+
+# second, with varying depth for the reference level - THIS IS THE FIGURE USED IN THE PAPER ----
+make_depthvar_rss_est <- function(zbird, zdepth.end) {
+    habXdepth2 <- readRDS(paste("mod_objects/combined/", zbird, "_habXdepth2", sep = ""))
+
+    big_s1 <- expand.grid(depth.end = zdepth.end,
+                      habitat.end = c("other.tidal", "eelgrass", "shellfish", "tidal.marsh")
+                      ) %>% 
+  mutate(habitat.end = factor(habitat.end,
+                    levels = levels(habXdepth2$model$model$habitat.end)),
+                    sl_ = newdat_sl_,
+         log_sl_ = log(newdat_sl_),
+         cos_ta_ = newdat_cos_ta_)
+
+big_s2 <- data.frame(
+  depth.end = zdepth.end, 
+  habitat.end = factor("other.tidal", 
+                    levels = levels(habXdepth2$model$model$habitat.end)),
+  sl_ = newdat_sl_,
+  log_sl_ = log(newdat_sl_),
+  cos_ta_ = newdat_cos_ta_)
+
+lr_g1_full <- log_rss(habXdepth2, big_s1, big_s2, ci = c("se"))$df %>% 
+  mutate(bird = zbird,
+         depth.end_x2 = zdepth.end)
+
+}
+
+big_rss <- make_depthvar_rss_est("GREG_1", 0)
+
+
+wild_greg_depthvar <- expand.grid(bird = wild_gregs$bird,
+                                  depth.end = seq(-5, 3, by = 0.1)) %>% 
+  data.frame() %>% 
+  mutate(bird = as.character(bird))
+
+depthvar_rss <- map2_df(wild_greg_depthvar$bird, wild_greg_depthvar$depth.end, make_depthvar_rss_est)
+
+depthvar_plot <- depthvar_rss %>% 
+  mutate(depth = ft2m(depth.end_x1)) %>% 
+  #filter(!(habitat.end_x1 == "subtidal" & depth < 0)) %>% 
+  filter(!(habitat.end_x1 == "shellfish" & depth < -1.2)) %>% 
+ggplot(aes(x = depth, y = log_rss)) +
+  geom_line(aes(color = habitat.end_x1)) +
+  geom_ribbon(aes(x = depth, ymin = lwr, ymax = upr, fill = habitat.end_x1), alpha = 0.2) +
+  scale_color_brewer(name = "Wetland type",
+                       breaks = c("other.tidal", "subtidal", "eelgrass", "shellfish", "tidal.marsh"),
+                     labels = c("Other tidal", "Subtidal", "Eelgrass", "Shellfish aquaculture", "Tidal marsh"),
+                     palette = "Set1") +
+  scale_fill_brewer(name = "Wetland type",
+                       breaks = c("other.tidal", "eelgrass", "shellfish", "tidal.marsh"),
+                     labels = c("Other tidal", "Eelgrass", "Shellfish aquaculture", "Tidal marsh"),
+                     palette = "Set1") +
+  xlab("Tide-dependent water depth (m)") +
+  ylab("log-Relative Selection Strength") +
+  theme_bw() +
+  facet_wrap(~bird, scales = "free")
+
+
+png("figures/depthvar_log_rss_fig.png", width = 7, height = 5, units = "in", res = 300)
+
+
+out_plot <- grid.arrange(shift_legend(depthvar_plot))
+
+
+ggsave("figures/depthvar_log_rss_fig.png", out_plot, width = 8, height = 5, dpi = 300)
 
