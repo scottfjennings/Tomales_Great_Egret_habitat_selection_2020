@@ -103,6 +103,23 @@ saveRDS(greg_steps_habitat, "derived_data/amt_bursts/greg_steps_habitat")
 
 greg_steps_habitat <- readRDS("derived_data/amt_bursts/greg_steps_habitat")
 
+# range of depths and elevations for each wetland type
+greg_steps_habitat %>% 
+  data.frame() %>% 
+  dplyr::group_by(habitat.end) %>% 
+  dplyr::summarise(min.elev = min(elevation.end),
+            mean.elev = mean(elevation.end),
+            max.elev = max(elevation.end),
+            min.depth = min(depth.end),
+            mean.depth = mean(depth.end),
+            max.depth = max(depth.end))
+
+
+greg_steps_habitat %>% 
+  ggplot()+
+  geom_point(aes(x = elevation.end, y = depth.end)) +
+  facet_wrap(~habitat.end)
+
 # area of each wetland type in raster
 
 rast <- raster("derived_data/habitat/Marigear_Eelgrass_CARI_mo.tif")
@@ -190,7 +207,7 @@ values(hab_stack) %>%
   ggtitle("hab_stack") +
   facet_wrap(~coarse.name, scales = "free")
 
-readRDS("derived_data/amt_bursts/greg_steps_habitat")%>% 
+readRDS("derived_data/amt_bursts/greg_steps_habitat") %>% 
   filter(!is.na(habitat.start), case_ == TRUE) %>% 
   ggplot()+
   geom_histogram(aes(x = elevation.start), binwidth = 1) +
@@ -199,7 +216,7 @@ readRDS("derived_data/amt_bursts/greg_steps_habitat")%>%
 
 
 # number of days tracked for each bird
-greg_steps_habitat %>% 
+readRDS("derived_data/amt_bursts/greg_steps_habitat") %>% 
   data.frame() %>%  
   mutate(date = as.Date(t1_)) %>% 
   group_by(bird) %>% 
@@ -209,14 +226,15 @@ greg_steps_habitat %>%
             max.day = max(date)) %>% 
   view()
 
-greg_steps_habitat %>% 
+readRDS("derived_data/amt_bursts/greg_steps_habitat") %>% 
   data.frame() %>%  
   mutate(date = as.Date(t1_)) %>% 
   group_by(bird) %>% 
   distinct(date) %>% 
   summarise(n.days = n()) %>% 
   ungroup() %>% 
-  summarise(mean.days = mean(n.days)) %>% 
+  summarise(mean.days = mean(n.days),
+            se.days = sd(n.days)/sqrt(n())) %>% 
   view() 
   
 
