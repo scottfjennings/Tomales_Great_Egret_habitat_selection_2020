@@ -68,7 +68,43 @@ ggplot() +
   
   
   
-  
+## table of wetland classification details
+baari_tabs <- extract_tables("C:/Users/scott.jennings/Documents/Projects/hetp/analyses/Tomales_Great_Egret_habitat_selection_2020/derived_data/habitat/SFEI_MAPPING_STANDARDS_08092011_v8_0.pdf")
+
+
+xwalk1 <- baari_tabs[[1]][4:22,] %>% 
+  data.frame() %>% 
+  dplyr::select(-X2) %>% 
+  separate(X1, into = c("code", "classification"), sep = "\\s", extra = "merge", remove = T) %>% 
+  rename(wetland.tracker.class = 3)
+
+xwalk2 <- baari_tabs[[2]] %>% 
+  data.frame() %>% 
+  rename(code = 1, classification = 2, wetland.tracker.class = 3)%>% 
+  filter(code != "STREAM NETWORK") %>% 
+  mutate(classification = gsub("â€", "-", classification))
+
+xwalk <- rbind(xwalk1, xwalk2)
+
+
+cari <- read.csv("C:/Users/scott.jennings/Documents/Projects/hetp/analyses/Tomales_Great_Egret_habitat_selection_2020/derived_data/habitat/tomales_cari_attributes.csv") %>% 
+  distinct(orig_class, clicklabel, legcode) 
+
+write.csv(cari, "C:/Users/scott.jennings/Documents/Projects/hetp/analyses/Tomales_Great_Egret_habitat_selection_2020/documents/table1.csv")
+
+baari <- read.csv("C:/Users/scott.jennings/Documents/Projects/hetp/analyses/Tomales_Great_Egret_habitat_selection_2020/derived_data/habitat/baari_map_standards.csv") %>% 
+  mutate(wetland.tracker.class = gsub("egetated", "egetation", wetland.tracker.class))
+
+baari_xwalk = full_join(baari, xwalk)
+
+cari_baari <- left_join(rename(cari, parent.code = orig_class), baari) %>% 
+  distinct() %>% 
+  drop_na() %>% 
+  filter(!wetland.tracker.class %in% c("Tidal Ditch", "Tidal Panne", "Fluvial Unvegetation Flat", "Fluvial Channel"))
+
+
+write.csv(cari_baari, "C:/Users/scott.jennings/Documents/Projects/hetp/analyses/Tomales_Great_Egret_habitat_selection_2020/documents/table1.csv", row.names = F)
+
   
   
   
