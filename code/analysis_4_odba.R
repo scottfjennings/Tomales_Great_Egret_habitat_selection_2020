@@ -103,8 +103,8 @@ estimates <- coef_ci %>%
                      labels = c("Other tidal", "Eelgrass", "Shellfish aquaculture", "Tidal marsh")))
 
 ggplot(estimates) +
-  geom_point(aes(x = habitat, y = est, color = habitat)) +
-  geom_errorbar(aes(x = habitat, ymin = lwr, ymax = upr, color = habitat), width = 0.5) +
+  geom_point(aes(x = habitat, y = est, color = habitat), size = 3) +
+  geom_errorbar(aes(x = habitat, ymin = lwr, ymax = upr, color = habitat), size = 2, width = 0.5) +
   scale_color_brewer(breaks = c("other.tidal", "eelgrass", "shellfish", "tidal.marsh"),
                      palette = "Set1") +
   theme_bw() +
