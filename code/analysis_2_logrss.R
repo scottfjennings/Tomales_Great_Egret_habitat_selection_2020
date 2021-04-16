@@ -119,7 +119,7 @@ saveRDS(depth2, paste("mod_objects/combined/", zbird, "_depth2", sep = ""))
 map(wild_gregs$bird, fit_depth2)
 
 #
-# model comparison for candidate models for first objective
+# model comparison for candidate models for first objective ----
  
 compare_mods_obj1 <- function(zbird) {
 
@@ -134,6 +134,8 @@ mod_comp <- aictab(list(hab.depth2$model, hab_depth2$model, hab$model, depth2$mo
 }
 
 all_aic <- map_df(wild_gregs$bird, compare_mods_obj1)
+
+saveRDS(all_aic, "mod_objects/aic/step1_aic")
 
 #view best model for each bird
 filter(all_aic, Delta_AICc == 0) %>% view()
@@ -273,4 +275,90 @@ out_plot <- grid.arrange(shift_legend(depthvar_plot))
 
 
 ggsave("figures/depthvar_log_rss_fig.png", out_plot, width = 8, height = 5, dpi = 300)
+dev.off()
+
+
+
+
+# sanity check, see how predicted rss changes if change the habitat type in s2 ----
+make_depthvar_rss_est <- function(zbird, zdepth.end) {
+    habXdepth2 <- readRDS(paste("mod_objects/combined/", zbird, "_habXdepth2", sep = ""))
+
+    big_s1 <- expand.grid(depth.end = zdepth.end,
+                      habitat.end = c("other.tidal", "eelgrass", "shellfish", "tidal.marsh")
+                      ) %>% 
+  mutate(habitat.end = factor(habitat.end,
+                    levels = levels(habXdepth2$model$model$habitat.end)),
+                    sl_ = newdat_sl_,
+         log_sl_ = log(newdat_sl_),
+         cos_ta_ = newdat_cos_ta_)
+
+big_s2 <- data.frame(
+  depth.end = zdepth.end, 
+  habitat.end = factor("eelgrass", 
+                    levels = levels(habXdepth2$model$model$habitat.end)),
+  sl_ = newdat_sl_,
+  log_sl_ = log(newdat_sl_),
+  cos_ta_ = newdat_cos_ta_)
+
+lr_g1_full <- log_rss(habXdepth2, big_s1, big_s2, ci = c("se"))$df %>% 
+  mutate(bird = zbird,
+         depth.end_x2 = zdepth.end)
+
+}
+
+big_rss <- make_depthvar_rss_est("GREG_1", 0)
+
+
+wild_greg_depthvar <- expand.grid(bird = wild_gregs$bird,
+                                  depth.end = seq(-5, 3, by = 0.1)) %>% 
+  data.frame() %>% 
+  mutate(bird = as.character(bird))
+
+depthvar_rss_eel_s2 <- map2_df(wild_greg_depthvar$bird, wild_greg_depthvar$depth.end, make_depthvar_rss_est)
+
+depthvar_rss_eel_s2 %>% 
+  mutate(depth = ft2m(depth.end_x1)) %>% 
+  #filter(!(habitat.end_x1 == "subtidal" & depth < 0)) %>% 
+  filter(!(habitat.end_x1 == "shellfish" & depth < -1.2)) %>% 
+ggplot(aes(x = depth, y = log_rss)) +
+  geom_line(aes(color = habitat.end_x1)) +
+  geom_ribbon(aes(x = depth, ymin = lwr, ymax = upr, fill = habitat.end_x1), alpha = 0.2) +
+  scale_color_brewer(name = "Wetland type",
+                       breaks = c("other.tidal", "subtidal", "eelgrass", "shellfish", "tidal.marsh"),
+                     labels = c("Other tidal", "Subtidal", "Eelgrass", "Shellfish aquaculture", "Tidal marsh"),
+                     palette = "Set1") +
+  scale_fill_brewer(name = "Wetland type",
+                       breaks = c("other.tidal", "eelgrass", "shellfish", "tidal.marsh"),
+                     labels = c("Other tidal", "Eelgrass", "Shellfish aquaculture", "Tidal marsh"),
+                     palette = "Set1") +
+  xlab("Tide-dependent water depth (m)") +
+  ylab("log-Relative Selection Strength") +
+  theme_bw() +
+  facet_wrap(~bird, scales = "free")
+
+# yup, results are as expected
+
+
+# create scaling values for egret image size in scematic of rss ----
+wild_greg_depthvar <- expand.grid(bird = wild_gregs$bird,
+                                  depth.end = m2ft(c(-0.75, 0, 0.75))) %>% 
+  data.frame() %>% 
+  mutate(bird = as.character(bird))
+
+depthvar_rss <- map2_df(wild_greg_depthvar$bird, wild_greg_depthvar$depth.end, make_depthvar_rss_est)
+
+mean_rss <- depthvar_rss %>% 
+  ungroup() %>% 
+  group_by(habitat.end_x1, depth.end_x1) %>%
+  summarise(mean.log.rss = mean(log_rss)) %>% 
+  ungroup() %>% 
+  mutate(depth.end_x1 = ft2m(depth.end_x1),
+         scale.mean.log.rss = (mean.log.rss + abs(min(mean.log.rss)) + 0.01)/abs(min(mean.log.rss)),
+         egret.scaler = 3 * scale.mean.log.rss)
+
+ggplot(mean_rss) +
+  geom_line(aes(x = depth.end_x1, y = mean.log.rss, color = habitat.end_x1))
+
+
 
