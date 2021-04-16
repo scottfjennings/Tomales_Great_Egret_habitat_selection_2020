@@ -7,7 +7,9 @@ library(tidyverse)
 library(amt)
 library(survival)
 library(AICcmodavg)
+library(gridExtra)
 source("code/utility_functions.r")
+source("C:/Users/scott.jennings/Documents/Projects/R_general/utility_functions/shift_label.R")
 
 #exclude_birds <- c("GREG_4", "GREG_7", "GREG_9", "GREG_10", "GREG_11")
 
@@ -18,8 +20,8 @@ wild_gregs <- wild_gregs %>%
 greg_steps_habitat <- readRDS("derived_data/amt_bursts/greg_steps_habitat") 
 
 # objective 2a ----
-# evidence of differences in step length or turn angle between habitats?
-# now add to the best model from above the habitat:movement interactions 
+# evidence of differences in step length between habitats?
+# now add habitat:movement interactions to best model from analysis_2_logrss.R
 # these models include the interaction between starting habitat and movement parms to see if movement characteristics differ between habitats
 
 
@@ -83,6 +85,7 @@ mod_comp <- aictab(list(hab.depth2$model, habXsl$model), modnames = c("hab.depth
 
 all_aic_obj2a <- map_df(wild_gregs$bird, compare_mods_obj2a)
 
+saveRDS(all_aic_obj2a, "mod_objects/aic/step2a_aic")
 
 filter(all_aic_obj2a, Delta_AICc == 0) %>% view()
 
@@ -258,7 +261,7 @@ plot_sl <- plot_sl %>%
 adjusted_sl <- map_df(wild_gregs$bird, adjust_move_parms)
 
 # Plot
-adjusted_sl %>% 
+plot_adjusted_sl <- adjusted_sl %>% 
   filter(step.length < 100) %>% 
 ggplot(aes(x = step.length, y = value)) +
   geom_line(aes(color = habitat.start)) +
@@ -269,10 +272,15 @@ ggplot(aes(x = step.length, y = value)) +
   xlab("Step Length (m)") +
   ylab("Probability Density") +
   theme_bw() +
-  facet_wrap(~bird, scales = "free")
+  facet_wrap(~bird)
 
 ggsave("figures/step_length_fig.png", width = 8, height = 5, dpi = 300)
 
+out_plot <- grid.arrange(shift_legend(plot_adjusted_sl))
+
+
+ggsave("figures/step_length_fig.png", out_plot, width = 8, height = 5, dpi = 300)
+dev.off()
 
 
 
