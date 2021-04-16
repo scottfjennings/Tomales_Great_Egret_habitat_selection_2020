@@ -1,53 +1,87 @@
 ---
-title: "Habitat classification table"
+title: "Table 1"
 output: word_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 ```
 
 ```{r}
 library(tidyverse)
 library(tabulizer)
+library(here)
+library(flextable)
+library(officer)
+library(lubridate)
 
 
 ```
 
-```{r }
+```{r}
+
+banding <- read.csv("C:/Users/scott.jennings/Documents/Projects/hetp/hetp_data_work/banding/HETP_banding.csv")%>% 
+  mutate(parent.location = case_when(grepl("TOPO", location.code) ~ "Toms Point",
+                                     grepl("WACR", location.code) ~ "Walker Creek",
+                                     grepl("CGRC", location.code) ~ "Cypress Grove")) %>% 
+  select(bird = Bird.ID, parent.location) %>% 
+  drop_na()
+
+bird_days <- readRDS(here("derived_data/amt_bursts/greg_steps_habitat")) %>% 
+  data.frame() %>%  
+  mutate(date = as.Date(t1_)) %>% 
+  group_by(bird) %>% 
+  distinct(date) %>% 
+  summarise(n.days = n(),
+            day.range = paste(as.character(min(date)), as.character(max(date)), sep = " to\n"))
+
+total_steps_habitat <- readRDS(here("derived_data/amt_bursts/greg_steps_habitat")) %>% 
+  data.frame() %>% 
+  filter(case_ == TRUE) %>% 
+  group_by(bird, habitat.end) %>% 
+  summarise(num.steps = n()) %>%
+  ungroup() %>% 
+  pivot_wider(names_from = "habitat.end", values_from = "num.steps") %>% 
+ mutate(across(everything(), ~replace_na(.x, 0))) %>% 
+  mutate(tot.points = other.tidal + eelgrass + shellfish + tidal.marsh)
 
 
-make_hab_names_df <- function() {
-hab_names_matrix <- matrix(c(-999, "NA", "NA", 10,  "NA",
-                             0, "NA", "NA", 11, "NA",
-                             1, 1, "shellfish.footprint", 1, "shellfish.footprint", 
-                             100, 2, "eelgrass", 2,  "eelgrass", 
-                             11000, 3, "estuarine.intertidal", 3, "intertidal", 
-                             15000, 4, "tidal.marsh", 3, "intertidal", 
-                             18000, 5, "estuarine.subtidal", 4, "subtidal", 
-                             21000, 6, "pond.and.vegetation", 5, "freshwater.wetland", 
-                             22000, 6, "pond.and.vegetation", 5, "freshwater.wetland", 
-                             24000, 6, "pond.and.vegetation", 5, "freshwater.wetland", 
-                             28000, 6, "pond.and.vegetation", 5, "freshwater.wetland", 
-                             29000, 7, "slope.seep", 5, "freshwater.wetland", 
-                             30000, 8, "fluvial.channel", 5, "freshwater.wetland", 
-                             39000, 9, "estuarine.pond", 3, "intertidal", 
-                             40000, 10, "tidal.channel", 4, "subtidal", 
-                             44000, 11, "fluvial.channel", 6, "freshwater.channel"), ncol = 5, byrow=TRUE)
+out_table <- full_join(bird_days, total_steps_habitat) %>% 
+  filter(bird != "GREG_4") %>% 
+  left_join(., banding) %>% 
+  mutate(bird = ifelse(shellfish < 10, paste(bird, "*", sep = ""), bird),
+         filler.col = "") %>% 
+  dplyr::select(bird, parent.location, n.days, day.range, filler.col, eelgrass, shellfish, tidal.marsh, other.tidal, tot.points) %>% 
+  arrange(-tot.points)
 
-
-hab_names_df <- data.frame(hab_names_matrix) %>% 
-  rename(old.num = 1, new.num = 2, fine.name = 3, coarse.num = 4, coarse.name = 5) %>% 
-  mutate(old.num = as.numeric(as.character(old.num)), new.num = as.numeric(as.character(new.num)), coarse.num = as.numeric(as.character(coarse.num)))
-}
-hab_names_df <- make_hab_names_df()
-
+flextable(out_table) %>%   
+  add_header_row(values = c("", "", "days tracked on Tomales Bay", "", "number of steps"), colwidths = c(1, 1, 2, 1, 5)) %>% 
+  set_header_labels(bird = "Bird ID") %>%
+  set_header_labels(parent.location = "capture site") %>%
+  set_header_labels(n.days = "total days") %>%
+  set_header_labels(day.range = "date range") %>%
+  set_header_labels(filler.col = "") %>%
+  set_header_labels(eelgrass = "eelgrass") %>% 
+  set_header_labels(shellfish = "shellfish") %>% 
+  set_header_labels(tidal.marsh = "tidal marsh") %>% 
+  set_header_labels(other.tidal = "other tidal") %>% 
+  set_header_labels(tot.points = "total steps") %>% 
+  border_remove() %>% 
+  border(i = 1, border.top = fp_border(color = "black"), part = "header") %>% 
+  border(i = 1, j = 3:4, border.bottom = fp_border(color = "black"), part = "header") %>% 
+  border(i = 1, j = 6:9, border.bottom = fp_border(color = "black"), part = "header") %>% 
+  border(i = 1, border.top = fp_border(color = "black"), part = "body") %>% 
+  border(i = nrow(out_table), border.bottom = fp_border(color = "black"), part = "body") %>% 
+  align(j = 1, align = "left", part = "all") %>% 
+  align(j = 2:10, align = "center", part = "all") %>% 
+  fontsize(size = 10, part = "all") %>% 
+  fit_to_width(max_width = 8.5) %>% 
+  width(j = 1, width = 0.85) %>% 
+  width(j = 2, width = 0.7) %>% 
+  width(j = 3, width = 0.45) %>% 
+  width(j = 4, width = 1.2) %>% 
+  width(j = 5, width = 0.1) %>% 
+  width(j = 6:7, width = 0.7)%>% 
+  width(j = 8:10, width = 0.55)
 ```
 
-
-
-```{r pressure, echo=FALSE}
-hab_names_df %>% 
-  distinct(fine.name, coarse.name) %>% 
-  filter(!is.na(coarse.name), coarse.name != "freshwater.wetland")
-```
