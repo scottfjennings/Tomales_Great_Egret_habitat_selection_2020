@@ -1,0 +1,100 @@
+---
+title: "Supplementary Tables"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(tabulizer)
+library(here)
+library(flextable)
+library(officer)
+library(lubridate)
+
+options(scipen = 999)
+
+
+flex_settings <- function(ft) {
+  ft %>%   
+  select(label.id, Modnames, K, Delta_AICc, AICcWt, LL) %>% 
+  flextable() %>% 
+  set_header_labels(label.id = "Bird ID") %>%
+  set_header_labels(Modnames = "model structure") %>%
+  set_header_labels(Delta_AICc = "\u0394 AICc") %>% 
+  set_header_labels(AICcWt = "AICc Wt.") %>% 
+  set_header_labels(LL = "ln(likelihood)") %>% 
+  border_remove() %>% 
+  border(i = 1, border.top = fp_border(color = "black"), part = "header") %>% 
+  border(i = 1, border.top = fp_border(color = "black"), part = "body") %>% 
+  border(i = nrow(ft), border.bottom = fp_border(color = "black"), part = "body") %>% 
+  align(j = 1:2, align = "left", part = "all") %>% 
+  align(j = 3:6, align = "center", part = "all") %>% 
+  fontsize(size = 10, part = "all") %>% 
+  fit_to_width(max_width = 8.5) %>% 
+  width(j = 1, width = 1.25) %>% 
+  width(j = c(3, 5), width = 0.75) %>% 
+  width(j = 2, width = 2) %>% 
+  width(j = 6, width = 1)
+  
+}
+
+table_text1 <- "Model selection results for evaluating differences in foraging"
+table_text2 <- " among wetland habitat types, while accounting for water depth, by GPS-tagged Great Egrets at Tomales Bay, CA, 2017-2020. K is the number of parameters, \u0394 AICc is the difference in AICc value between the top model and the current model, and AICc Wt. is the AICc model weight."
+
+```
+
+
+
+
+Supplementary Table 1. `r table_text1` habitat selection `r table_text2`
+```{r}
+
+
+
+step1_aic <- readRDS(here("mod_objects/aic/step1_aic")) %>% 
+  mutate(Modnames = case_when(Modnames == "hab.depth2" ~ "wetland type * depth2",
+                              Modnames == "hab_depth2" ~ "wetland type + depth2",
+                              Modnames == "hab" ~ "wetland type",
+                              Modnames == "depth2" ~ "depth2")) %>% 
+  mutate(Delta_AICc = round(Delta_AICc, 1),
+         AICcWt = round(AICcWt, 3)) %>% 
+  mutate(label.id = ifelse(Delta_AICc == 0, bird, ""))
+
+
+step1_aic %>% 
+  flex_settings() %>% 
+  border(i = c(5, 9, 13, 17, 21, 25), border.top = fp_border(color = "black"), part = "body")
+  
+
+```
+
+
+
+<br>
+Supplementary Table 2. `r table_text1` step length `r table_text2`
+
+```{r}
+
+step2_aic <- readRDS(here("mod_objects/aic/step2a_aic")) %>% 
+  mutate(Modnames = case_when(Modnames == "hab.depth2" ~ "wetland type * depth2",
+                              Modnames == "hab_depth2" ~ "wetland type + depth2",
+                              Modnames == "hab" ~ "wetland type",
+                              Modnames == "depth2" ~ "depth2",
+                              Modnames == "habXsl" ~ "wetland type * step length")) %>%
+  select(bird, Modnames, K, Delta_AICc, AICcWt, LL) %>% 
+  mutate(Delta_AICc = round(Delta_AICc, 1),
+         AICcWt = round(AICcWt, 3)) %>% 
+  mutate(label.id = ifelse(Delta_AICc == 0, bird, ""))
+
+
+step2_aic %>% 
+  flex_settings() %>% 
+  border(i = c(3, 5, 7, 9, 11, 13), border.top = fp_border(color = "black"), part = "body")
+
+	
+
+```
