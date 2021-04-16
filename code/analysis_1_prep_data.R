@@ -74,7 +74,7 @@ greg_steps_habitat <- greg_steps_habitat %>%
   filter(!is.na("elevation.start")) %>% 
   filter(!is.na("elevation.end")) %>% 
   filter(habitat.start != "freshwater.wetland", habitat.end != "freshwater.wetland") %>% 
-  filter(bird != "GREG_4") %>% 
+ # filter(bird != "GREG_4") %>% 
   filter(elevation.end < 10) %>% 
   #mutate(habitat.start = as.character(habitat.start),
   #       habitat.start = ifelse(habitat.start == "intertidal" & elevation.start < sub_inter_bound, "subtidal", habitat.start),
@@ -148,7 +148,7 @@ mask_dem <- dem.new %>%
 
 
 hab_stack <- stack(mask_rast, mask_dem)
-
+sub_inter_bound = -2.69
 # adapted from https://gis.stackexchange.com/questions/167465/reclassifying-raster-stack-based-on-condition-and-other-layers-using-r
 #Write reclassification function
 
@@ -169,17 +169,22 @@ hab_area_2 <- tapply(area(hab_stack2), hab_stack2[], sum) %>%
   rename(area.m2 = 1) %>% 
   rownames_to_column("Value") %>% 
   mutate(Value = as.numeric(Value)) %>% 
-  full_join(., hab_names_df) %>% 
+  full_join(., read.csv("derived_data/habitat/Tomales_habitat_raster_key_2.csv")) %>% 
   filter(!is.na(coarse.name)) %>% 
   group_by(coarse.name) %>% 
   summarise(area.m2.alt = sum(area.m2))
+
+hab_area_2 %>% 
+  filter(coarse.name != "freshwater.wetland") %>% 
+  summarise(tot.area = sum(area.m2.alt))
+
 
 hab_area_ll <- tapply(area(rast_ll), rast_ll[], sum)  %>% 
   data.frame() %>%  
   rename(area.m2 = 1) %>% 
   rownames_to_column("Value") %>% 
   mutate(Value = as.numeric(Value)) %>% 
-  full_join(., hab_names_df) %>% 
+  full_join(., read.csv("derived_data/habitat/Tomales_habitat_raster_key_2.csv")) %>% 
   filter(!is.na(coarse.name)) %>% 
   mutate(coarse.name = ifelse(coarse.name %in% c("subtidal", "intertidal"), "other.tidal", coarse.name)) %>% 
   group_by(coarse.name) %>% 
@@ -200,8 +205,8 @@ values(hab_stack) %>%
   data.frame() %>% 
   rename(Value = Marigear_Eelgrass_CARI_mo) %>% 
   mutate(Value = as.numeric(Value)) %>% 
-  full_join(., hab_names_df) %>%
-  filter(!is.na(coarse.name)) %>% 
+  full_join(., read.csv("derived_data/habitat/Tomales_habitat_raster_key_2.csv")) %>%
+  filter(!is.na(coarse.name)) %>% view()
   ggplot()+
   geom_histogram(aes(x = tomales_dem_bathy_max), binwidth = 1) +
   ggtitle("hab_stack") +
@@ -243,10 +248,28 @@ greg_steps_habitat %>%
   data.frame() %>% 
   filter(case_ == TRUE) %>% 
   group_by(bird, habitat.end) %>% 
-  summarise(num.steps = n()) %>% 
+  summarise(num.steps = n()) %>%
   ungroup() %>% 
   pivot_wider(names_from = "habitat.end", values_from = "num.steps") %>% 
+ mutate(across(everything(), ~replace_na(.x, 0))) %>% 
+  mutate(tot.points = other.tidal + eelgrass + shellfish + tidal.marsh) %>% 
+  arrange(-tot.points) %>% 
   view()
+# proportion of used steps for each bird in each habitat
+greg_steps_habitat %>% 
+  data.frame() %>% 
+  filter(case_ == TRUE) %>% 
+  group_by(bird, habitat.end) %>% 
+  summarise(num.steps = n()) %>%
+  ungroup() %>% 
+  group_by(bird) %>% 
+  mutate(tot.steps = sum(num.steps),
+         percent.steps = num.steps/tot.steps,
+         percent.steps = round(percent.steps*100, 1)) %>%
+  dplyr::select(bird, habitat.end, percent.steps) %>% 
+  pivot_wider(names_from = "habitat.end", values_from = "percent.steps") %>% 
+  view()
+
 
 # mean step length and turn angle; used later for making model predictions
 greg_steps_habitat %>% 
