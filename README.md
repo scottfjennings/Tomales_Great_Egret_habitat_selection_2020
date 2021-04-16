@@ -6,22 +6,17 @@ Analysis of habitat selection by GPS tagged Great Egrets on Tomales Bay, CA
 ## code  
 
 *main analysis code*  
-The analysis has 2 parts, each part having multiple code files.  
+The analysis is composed of 4 steps, each with their own code file:  
 
-1. habitat selection  
+* analysis_1_prep_data.R: Combine necessary data sources. Assign habitat and elevation values to each GPS location. Calculate time-specific, location-specific water depth. Basic pre-analysis data summaries and visualization.  
 
-* hab_sel_1_combine_data_for_iSSF.R - First step in habitat selection analysis. Assign habitat and elevation values to each GPS location  
-
-* hab_sel_2_fit_models.R - fit iSSF models to estimate relative habitat selection. Saves each model object as RDS  
-  + uses methods of Avgar, T., Potts, J. R., Lewis, M. A., & Boyce, M. S. (2016). Integrated step selection analysis: bridging the gap between resource selection and animal movement. Methods in Ecology and Evolution, 7(5), 619–630. https://doi.org/10.1111/2041-210X.12528  
+* analysis_2_logrss.R - fit iSSF models to estimate relative habitat selection. Saves each model object as RDS. uses methods of:   
+  + Avgar, T., Potts, J. R., Lewis, M. A., & Boyce, M. S. (2016). Integrated step selection analysis: bridging the gap between resource selection and animal movement. Methods in Ecology and Evolution, 7(5), 619–630. https://doi.org/10.1111/2041-210X.12528  
   Avgar, T., Lele, S. R., Keim, J. L., & Boyce, M. S. (2017). Relative Selection Strength: Quantifying effect size in habitat- and step-selection inference. Ecology and Evolution, 7(14), 5322–5330. https://doi.org/10.1002/ece3.3122  
   
-* hab_sel_3_model_results.R - Read RDS model objects, view coefficients, etc. Generate plots to show relative selection of each habitat.
+* analysis_3_steplength.R - test for differences in steplength between wetland types. Extends the models from analysis_2_logrss.R to include the interaction between wetland type and step length.  
 
-2. movement/behavior 
-
-* behav_1_combine_data.R - combine ODBA (calculated in hetp_data_work/code_HETP/data_management/add_covariates.R) with habitat values
-
+* analysis_4_odba.R - test for differences in Overall Dynamic Body Acceleration (ODBA) between wetland types. Fit mixed effects linear models with a random effect for bird ID.
 
 *helper code*
 
