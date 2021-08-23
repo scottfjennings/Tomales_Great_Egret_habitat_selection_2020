@@ -1,7 +1,6 @@
 
 
 
-# after 
 
 
 
@@ -10,13 +9,37 @@ library(amt)
 library(lubridate)
 library(AICcmodavg)
 library(gridExtra)
+library(RColorBrewer)
 source("code/utility_functions.r")
 source("C:/Users/scott.jennings/Documents/Projects/R_general/utility_functions/shift_label.R")
 #greg_dat_dist <- distinct(greg_dat)
 
-# read data; from combined_analysis_1_prep_data.R ----
+# read data; from analysis_1_prep_data.R ----
 
 greg_steps_habitat <- readRDS("derived_data/amt_bursts/greg_steps_habitat")
+# nrow = 613021
+greg_steps_habitat %>% 
+  data.frame() %>% 
+  filter(case_ == TRUE) %>% 
+  dplyr::summarise(quants = quantile(depth.end, probs = c(0.025, 0.95))) %>% 
+  mutate(depth.quant = rep(c("lwr", "upr"))) 
+
+
+greg_steps_habitat <- greg_steps_habitat %>% 
+  filter(depth.end < 1)
+# nrow = 498226
+depth_quants <- greg_steps_habitat %>% 
+  data.frame() %>% 
+  filter(case_ == TRUE) %>% 
+  dplyr::group_by(wetland.end) %>% 
+  dplyr::summarise(quants = quantile(depth.end, probs = c(0.025, 0.975))) %>% 
+  mutate(depth.quant = rep(c("lwr.depth", "upr.depth"))) %>% 
+  pivot_wider(id_cols = wetland.end, names_from = depth.quant, values_from = quants) %>% 
+  rename(wetland.end_x1 = wetland.end)
+
+# mean step length and turn angle in greg_steps_habitat
+newdat_sl_ = 128
+newdat_cos_ta_ = 0
 
 
 wild_gregs <- wild_gregs %>% 
@@ -39,15 +62,13 @@ wild_gregs <- wild_gregs %>%
 fit_hab.depth2 <- function(zbird) {
 hab.depth2 <- greg_steps_habitat %>% 
   filter(bird == zbird) %>% 
-  fit_issf(case_ ~ habitat.end * (depth.end + I(depth.end^2)) + 
+  fit_issf(case_ ~ wetland.end * (depth.end + I(depth.end^2)) + 
              sl_ + log_sl_ + cos_ta_ + 
              strata(step_id_), model = TRUE)
 
 # 
 saveRDS(hab.depth2, paste("mod_objects/combined/", zbird, "_habXdepth2", sep = ""))
 }
-
-
 
 
 map(wild_gregs$bird, fit_hab.depth2)
@@ -81,7 +102,7 @@ fit_hab_depth2 <- function(zbird) {
  
 hab_depth2 <- greg_steps_habitat %>% 
   filter(bird == zbird) %>% 
-  fit_issf(case_ ~ habitat.end + depth.end + I(depth.end^2) + 
+  fit_issf(case_ ~ wetland.end + depth.end + I(depth.end^2) + 
              sl_ + log_sl_ + cos_ta_ + 
              strata(step_id_), model = TRUE)
  
@@ -96,7 +117,7 @@ fit_hab <- function(zbird) {
  
 hab <- greg_steps_habitat %>% 
   filter(bird == zbird) %>% 
-  fit_issf(case_ ~ habitat.end + 
+  fit_issf(case_ ~ wetland.end + 
              sl_ + log_sl_ + cos_ta_ + 
              strata(step_id_), model = TRUE)
 # 
@@ -119,6 +140,41 @@ saveRDS(depth2, paste("mod_objects/combined/", zbird, "_depth2", sep = ""))
 map(wild_gregs$bird, fit_depth2)
 
 #
+# adding 3 models in response to reviewer concerns about fitting quadratic and not linear
+fit_hab.depth <- function(zbird) {
+hab.depth <- greg_steps_habitat %>% 
+  filter(bird == zbird) %>% 
+  fit_issf(case_ ~ wetland.end * depth.end + 
+             sl_ + log_sl_ + cos_ta_ + 
+             strata(step_id_), model = TRUE)
+ 
+saveRDS(hab.depth, paste("mod_objects/combined/", zbird, "_habXdepth", sep = ""))
+}
+map(wild_gregs$bird, fit_hab.depth)
+
+fit_hab_depth <- function(zbird) {
+hab_depth <- greg_steps_habitat %>% 
+  filter(bird == zbird) %>% 
+  fit_issf(case_ ~ wetland.end + depth.end + 
+             sl_ + log_sl_ + cos_ta_ + 
+             strata(step_id_), model = TRUE)
+
+saveRDS(hab_depth, paste("mod_objects/combined/", zbird, "_hab_depth", sep = ""))
+}
+map(wild_gregs$bird, fit_hab_depth)
+
+fit_depth <- function(zbird) {
+depth <- greg_steps_habitat %>% 
+  filter(bird == zbird) %>% 
+  fit_issf(case_ ~ depth.end + 
+             sl_ + log_sl_ + cos_ta_ + 
+             strata(step_id_), model = TRUE)
+
+saveRDS(depth, paste("mod_objects/combined/", zbird, "_depth", sep = ""))
+}
+map(wild_gregs$bird, fit_depth)
+
+
 # model comparison for candidate models for first objective ----
  
 compare_mods_obj1 <- function(zbird) {
@@ -127,8 +183,12 @@ compare_mods_obj1 <- function(zbird) {
   hab_depth2 <- readRDS(paste("mod_objects/combined/", zbird, "_hab_depth2", sep = ""))
   hab <- readRDS(paste("mod_objects/combined/", zbird, "_hab", sep = ""))
   depth2 <- readRDS(paste("mod_objects/combined/", zbird, "_depth2", sep = ""))
-
-mod_comp <- aictab(list(hab.depth2$model, hab_depth2$model, hab$model, depth2$model), modnames = c("hab.depth2", "hab_depth2", "hab", "depth2")) %>% 
+  # 3 added models
+  hab.depth <- readRDS(paste("mod_objects/combined/", zbird, "_habXdepth", sep = ""))
+  hab_depth <- readRDS(paste("mod_objects/combined/", zbird, "_hab_depth", sep = ""))
+  depth <- readRDS(paste("mod_objects/combined/", zbird, "_depth", sep = ""))
+  
+  mod_comp <- aictab(list(hab.depth2$model, hab_depth2$model, hab$model, depth2$model, hab.depth$model, hab_depth$model, depth$model), modnames = c("hab.depth2", "hab_depth2", "hab", "depth2", "hab.depth", "hab_depth", "depth")) %>% 
   data.frame() %>% 
   mutate(bird = zbird)
 }
@@ -147,28 +207,36 @@ filter(all_aic, Delta_AICc != 0) %>% group_by(bird) %>%  filter(Delta_AICc == mi
 
 
 
+# read in best models
+read_best_mods <- function(zbird) {
+  hab.depth2 <- readRDS(paste("mod_objects/combined/", zbird, "_habXdepth2", sep = ""))
+}
+
+best_mods <- map(wild_gregs$bird, read_best_mods)
+
+summary(best_mods[[1]])
 
 # calculate and plot relative selection strength from best model ----
-newdat_sl_ = 127
-newdat_cos_ta_ = 1
+
+
 
 # first using a fixed value for depth in the reference level ----
 make_big_rss_est <- function(zbird) {
     habXdepth2 <- readRDS(paste("mod_objects/combined/", zbird, "_habXdepth2", sep = ""))
 
-    big_s1 <- expand.grid(depth.end = seq(-5, 3, by = 0.1),
-                      habitat.end = c("other.tidal", "eelgrass", "shellfish", "tidal.marsh")
+    big_s1 <- expand.grid(depth.end = seq(-1.7, 2, by = 0.1),
+                      wetland.end = c("other.tidal", "eelgrass", "shellfish", "tidal.marsh")
                       ) %>% 
-  mutate(habitat.end = factor(habitat.end,
-                    levels = levels(habXdepth2$model$model$habitat.end)),
+  mutate(wetland.end = factor(wetland.end,
+                    levels = levels(habXdepth2$model$model$wetland.end)),
                     sl_ = newdat_sl_,
          log_sl_ = log(newdat_sl_),
          cos_ta_ = newdat_cos_ta_)
 
 big_s2 <- data.frame(
   depth.end = 0, 
-  habitat.end = factor("other.tidal", 
-                    levels = levels(habXdepth2$model$model$habitat.end)),
+  wetland.end = factor("other.tidal", 
+                    levels = levels(habXdepth2$model$model$wetland.end)),
   sl_ = newdat_sl_,
   log_sl_ = log(newdat_sl_),
   cos_ta_ = newdat_cos_ta_)
@@ -178,7 +246,7 @@ lr_g1_full <- log_rss(habXdepth2, big_s1, big_s2, ci = c("se"))$df %>%
 
 }
 
-big_rss <- make_big_rss_est("GREG_1")
+big_rss <- make_big_rss_est("GREG_3")
 
 
 big_rss <- map_df(wild_gregs$bird, make_big_rss_est)
@@ -187,46 +255,58 @@ big_rss <- map_df(wild_gregs$bird, make_big_rss_est)
 
 
 
-big_rss %>% 
-  mutate(depth = ft2m(depth.end_x1)) %>% 
-  #filter(!(habitat.end_x1 == "subtidal" & depth < 0)) %>% 
-  filter(!(habitat.end_x1 == "shellfish" & depth < -1.2)) %>% 
-ggplot(aes(x = depth, y = log_rss)) +
-  geom_line(aes(color = habitat.end_x1)) +
-  geom_ribbon(aes(x = depth, ymin = lwr, ymax = upr, fill = habitat.end_x1), alpha = 0.2) +
+plot_rss <- big_rss %>% 
+  data.frame() %>% 
+  mutate(wetland.label = case_when(wetland.end_x1 == "eelgrass" ~ "Eelgrass",
+                                   wetland.end_x1 == "shellfish" ~ "Shellfish aquaculture",
+                                   wetland.end_x1 == "tidal.marsh" ~ "Tidal marsh",
+                                   wetland.end_x1 == "other.tidal" ~ "Other tidal"),
+         wetland.label = factor(wetland.label, levels = c("Eelgrass", "Shellfish aquaculture", "Tidal marsh", "Other tidal"))) %>% 
+  arrange(wetland.end_x1, depth.end_x1)
+
+ggplot(plot_rss) +
+  geom_point(aes(x = wetland.label, y = depth.end_x1)) +
+  facet_wrap(~bird)
+
+ggplot(plot_rss) +
+  geom_line(aes(x = depth.end_x1, y = log_rss, color = wetland.end_x1)) +
+  geom_ribbon(aes(x = depth.end_x1, ymin = lwr, ymax = upr, fill = wetland.label), alpha = 0.2) +
   scale_color_brewer(name = "Wetland type",
-                       breaks = c("other.tidal", "subtidal", "eelgrass", "shellfish", "tidal.marsh"),
-                     labels = c("Other tidal", "Subtidal", "Eelgrass", "Shellfish aquaculture", "Tidal marsh"),
+                       breaks = c("Eelgrass", "Shellfish aquaculture", "Tidal marsh", "Other tidal"),
+                     labels = c("Eelgrass", "Shellfish aquaculture", "Tidal marsh", "Other tidal"),
                      palette = "Set1") +
   scale_fill_brewer(name = "Wetland type",
-                       breaks = c("other.tidal", "eelgrass", "shellfish", "tidal.marsh"),
-                     labels = c("Other tidal", "Eelgrass", "Shellfish aquaculture", "Tidal marsh"),
+                       breaks = c("Eelgrass", "Shellfish aquaculture", "Tidal marsh", "Other tidal"),
+                     labels = c("Eelgrass", "Shellfish aquaculture", "Tidal marsh", "Other tidal"),
                      palette = "Set1") +
-  xlab("Tide-dependent water depth (m)/n note: negative values indicate elevation above current water level") +
+  xlab("Tide-dependent water depth (m)\nnegative values indicate elevation above current water level") +
   ylab("log-Relative Selection Strength") +
   theme_bw() +
-  facet_wrap(~bird, scales = "free")
+  facet_wrap(~bird)
 
 ggsave("figures/log_rss_fig.png", width = 8, height = 5, dpi = 300)
 
 
 # second, with varying depth for the reference level - THIS IS THE FIGURE USED IN THE PAPER ----
+newdat_sl_ = 128
+newdat_cos_ta_ = 0
+
 make_depthvar_rss_est <- function(zbird, zdepth.end) {
     habXdepth2 <- readRDS(paste("mod_objects/combined/", zbird, "_habXdepth2", sep = ""))
 
     big_s1 <- expand.grid(depth.end = zdepth.end,
-                      habitat.end = c("other.tidal", "eelgrass", "shellfish", "tidal.marsh")
+                      wetland.end = c("other.tidal", "eelgrass", "shellfish", "tidal.marsh")
                       ) %>% 
-  mutate(habitat.end = factor(habitat.end,
-                    levels = levels(habXdepth2$model$model$habitat.end)),
+  mutate(wetland.end = factor(wetland.end,
+                    levels = levels(habXdepth2$model$model$wetland.end)),
                     sl_ = newdat_sl_,
          log_sl_ = log(newdat_sl_),
          cos_ta_ = newdat_cos_ta_)
 
 big_s2 <- data.frame(
   depth.end = zdepth.end, 
-  habitat.end = factor("other.tidal", 
-                    levels = levels(habXdepth2$model$model$habitat.end)),
+  wetland.end = factor("other.tidal", 
+                    levels = levels(habXdepth2$model$model$wetland.end)),
   sl_ = newdat_sl_,
   log_sl_ = log(newdat_sl_),
   cos_ta_ = newdat_cos_ta_)
@@ -241,31 +321,35 @@ big_rss <- make_depthvar_rss_est("GREG_1", 0)
 
 
 wild_greg_depthvar <- expand.grid(bird = wild_gregs$bird,
-                                  depth.end = seq(-5, 3, by = 0.1)) %>% 
+                                  depth.end = seq(-1, 1, by = 0.1)) %>% 
   data.frame() %>% 
   mutate(bird = as.character(bird))
 
 depthvar_rss <- map2_df(wild_greg_depthvar$bird, wild_greg_depthvar$depth.end, make_depthvar_rss_est)
 
-depthvar_plot <- depthvar_rss %>% 
-  mutate(depth = ft2m(depth.end_x1)) %>% 
-  #filter(!(habitat.end_x1 == "subtidal" & depth < 0)) %>% 
-  filter(!(habitat.end_x1 == "shellfish" & depth < -1.2)) %>% 
-ggplot(aes(x = depth, y = log_rss)) +
-  geom_line(aes(color = habitat.end_x1)) +
-  geom_ribbon(aes(x = depth, ymin = lwr, ymax = upr, fill = habitat.end_x1), alpha = 0.2) +
+depthvar_plot <- depthvar_rss  %>% 
+  rename(depth = depth.end_x1) %>% 
+  mutate(wetland.label = case_when(wetland.end_x1 == "eelgrass" ~ "Eelgrass",
+                                   wetland.end_x1 == "shellfish" ~ "Shellfish aquaculture",
+                                   wetland.end_x1 == "tidal.marsh" ~ "Tidal marsh",
+                                   wetland.end_x1 == "other.tidal" ~ "Other tidal"),
+         wetland.label = factor(wetland.label, levels = c("Eelgrass", "Shellfish aquaculture", "Tidal marsh", "Other tidal"))) %>%
+  ggplot() +
+  geom_line(aes(x = depth, y = log_rss, color = wetland.label)) +
+  geom_ribbon(aes(x = depth, ymin = lwr, ymax = upr, fill = wetland.label), alpha = 0.2) +
   scale_color_brewer(name = "Wetland type",
-                       breaks = c("other.tidal", "subtidal", "eelgrass", "shellfish", "tidal.marsh"),
-                     labels = c("Other tidal", "Subtidal", "Eelgrass", "Shellfish aquaculture", "Tidal marsh"),
-                     palette = "Set1") +
+                       breaks = c("Eelgrass", "Shellfish aquaculture", "Tidal marsh", "Other tidal"),
+                     labels = c("Eelgrass", "Shellfish aquaculture", "Tidal marsh", "Other tidal"),
+                     palette = "Dark2") +
   scale_fill_brewer(name = "Wetland type",
-                       breaks = c("other.tidal", "eelgrass", "shellfish", "tidal.marsh"),
-                     labels = c("Other tidal", "Eelgrass", "Shellfish aquaculture", "Tidal marsh"),
-                     palette = "Set1") +
+                       breaks = c("Eelgrass", "Shellfish aquaculture", "Tidal marsh", "Other tidal"),
+                     labels = c("Eelgrass", "Shellfish aquaculture", "Tidal marsh", "Other tidal"),
+                     palette = "Dark2") +
   xlab("Tide-dependent water depth (m)") +
   ylab("log-Relative Selection Strength") +
   theme_bw() +
-  facet_wrap(~bird, scales = "free")
+  facet_wrap(~bird)
+
 
 
 png("figures/depthvar_log_rss_fig.png", width = 7, height = 5, units = "in", res = 300)
@@ -274,7 +358,7 @@ png("figures/depthvar_log_rss_fig.png", width = 7, height = 5, units = "in", res
 out_plot <- grid.arrange(shift_legend(depthvar_plot))
 
 
-ggsave("figures/depthvar_log_rss_fig.png", out_plot, width = 8, height = 5, dpi = 300)
+ggsave("figures/Fig2.tiff", out_plot, width = 7, height = 5, dpi = 300)
 dev.off()
 
 
@@ -285,18 +369,18 @@ make_depthvar_rss_est <- function(zbird, zdepth.end) {
     habXdepth2 <- readRDS(paste("mod_objects/combined/", zbird, "_habXdepth2", sep = ""))
 
     big_s1 <- expand.grid(depth.end = zdepth.end,
-                      habitat.end = c("other.tidal", "eelgrass", "shellfish", "tidal.marsh")
+                      wetland.end = c("other.tidal", "eelgrass", "shellfish", "tidal.marsh")
                       ) %>% 
-  mutate(habitat.end = factor(habitat.end,
-                    levels = levels(habXdepth2$model$model$habitat.end)),
+  mutate(wetland.end = factor(wetland.end,
+                    levels = levels(habXdepth2$model$model$wetland.end)),
                     sl_ = newdat_sl_,
          log_sl_ = log(newdat_sl_),
          cos_ta_ = newdat_cos_ta_)
 
 big_s2 <- data.frame(
   depth.end = zdepth.end, 
-  habitat.end = factor("eelgrass", 
-                    levels = levels(habXdepth2$model$model$habitat.end)),
+  wetland.end = factor("other.tidal", 
+                    levels = levels(habXdepth2$model$model$wetland.end)),
   sl_ = newdat_sl_,
   log_sl_ = log(newdat_sl_),
   cos_ta_ = newdat_cos_ta_)
@@ -319,11 +403,11 @@ depthvar_rss_eel_s2 <- map2_df(wild_greg_depthvar$bird, wild_greg_depthvar$depth
 
 depthvar_rss_eel_s2 %>% 
   mutate(depth = ft2m(depth.end_x1)) %>% 
-  #filter(!(habitat.end_x1 == "subtidal" & depth < 0)) %>% 
-  filter(!(habitat.end_x1 == "shellfish" & depth < -1.2)) %>% 
+  #filter(!(wetland.end_x1 == "subtidal" & depth < 0)) %>% 
+  filter(!(wetland.end_x1 == "shellfish" & depth < -1.2)) %>% 
 ggplot(aes(x = depth, y = log_rss)) +
-  geom_line(aes(color = habitat.end_x1)) +
-  geom_ribbon(aes(x = depth, ymin = lwr, ymax = upr, fill = habitat.end_x1), alpha = 0.2) +
+  geom_line(aes(color = wetland.end_x1)) +
+  geom_ribbon(aes(x = depth, ymin = lwr, ymax = upr, fill = wetland.end_x1), alpha = 0.2) +
   scale_color_brewer(name = "Wetland type",
                        breaks = c("other.tidal", "subtidal", "eelgrass", "shellfish", "tidal.marsh"),
                      labels = c("Other tidal", "Subtidal", "Eelgrass", "Shellfish aquaculture", "Tidal marsh"),
@@ -350,15 +434,19 @@ depthvar_rss <- map2_df(wild_greg_depthvar$bird, wild_greg_depthvar$depth.end, m
 
 mean_rss <- depthvar_rss %>% 
   ungroup() %>% 
-  group_by(habitat.end_x1, depth.end_x1) %>%
+  group_by(wetland.end_x1, depth.end_x1) %>%
   summarise(mean.log.rss = mean(log_rss)) %>% 
   ungroup() %>% 
   mutate(depth.end_x1 = ft2m(depth.end_x1),
          scale.mean.log.rss = (mean.log.rss + abs(min(mean.log.rss)) + 0.01)/abs(min(mean.log.rss)),
          egret.scaler = 3 * scale.mean.log.rss)
 
+saveRDS(mean_rss, "derived_data/rss_scematic_scaling")
+
+mean_rss <- readRDS("derived_data/rss_scematic_scaling") %>% 
+  mutate(egret.scaler = egret.scaler/2)
 ggplot(mean_rss) +
-  geom_line(aes(x = depth.end_x1, y = mean.log.rss, color = habitat.end_x1))
+  geom_line(aes(x = depth.end_x1, y = mean.log.rss, color = wetland.end_x1))
 
 
 
