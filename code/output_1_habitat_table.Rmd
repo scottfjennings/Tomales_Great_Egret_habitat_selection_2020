@@ -21,9 +21,9 @@ library(lubridate)
 ```{r}
 
 banding <- read.csv("C:/Users/scott.jennings/Documents/Projects/hetp/hetp_data_work/banding/HETP_banding.csv")%>% 
-  mutate(parent.location = case_when(grepl("TOPO", location.code) ~ "Toms Point",
-                                     grepl("WACR", location.code) ~ "Walker Creek",
-                                     grepl("CGRC", location.code) ~ "Cypress Grove")) %>% 
+  mutate(parent.location = case_when(grepl("TOPO", location.code) ~ "TP",
+                                     grepl("WACR", location.code) ~ "WC",
+                                     grepl("CGRC", location.code) ~ "CG")) %>% 
   select(bird = Bird.ID, parent.location) %>% 
   drop_na()
 
@@ -38,10 +38,10 @@ bird_days <- readRDS(here("derived_data/amt_bursts/greg_steps_habitat")) %>%
 total_steps_habitat <- readRDS(here("derived_data/amt_bursts/greg_steps_habitat")) %>% 
   data.frame() %>% 
   filter(case_ == TRUE) %>% 
-  group_by(bird, habitat.end) %>% 
+  group_by(bird, wetland.end) %>% 
   summarise(num.steps = n()) %>%
   ungroup() %>% 
-  pivot_wider(names_from = "habitat.end", values_from = "num.steps") %>% 
+  pivot_wider(names_from = "wetland.end", values_from = "num.steps") %>% 
  mutate(across(everything(), ~replace_na(.x, 0))) %>% 
   mutate(tot.points = other.tidal + eelgrass + shellfish + tidal.marsh)
 
@@ -74,6 +74,7 @@ flextable(out_table) %>%
   border(i = nrow(out_table), border.bottom = fp_border(color = "black"), part = "body") %>% 
   align(j = 1, align = "left", part = "all") %>% 
   align(j = 2:10, align = "center", part = "all") %>% 
+  valign(valign = "top", part = "all") %>% 
   fontsize(size = 10, part = "all") %>% 
   fit_to_width(max_width = 8.5) %>% 
   width(j = 1, width = 0.85) %>% 

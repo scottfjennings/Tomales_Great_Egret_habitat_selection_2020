@@ -1,6 +1,6 @@
 
 library(tidyverse)
-
+library(amt)
 source("code/utility_functions.r")
 
 # calculate area of eelgrass coverage in tomales bay ----
@@ -29,7 +29,7 @@ all_greg_dat %>%
             max.depth = max(water.depth))
 
 
-# how do step lengths change with different sample rate and how does this relate to GPS accuracy
+# how do step lengths change with different sample rate and how does this relate to GPS accuracy ----
 # trying to determine what sample rate is best
 hetp_for_habitat_sel <- readRDS("derived_data/birds/wild_greg_tomales")
 
@@ -50,25 +50,33 @@ greg_track <- hetp_for_habitat_sel %>%
 
 rate30 <- map2_df(wild_gregs$bird, 30, test_sample_rate)
 
+rate20 <- map2_df(wild_gregs$bird, 20, test_sample_rate)
+
 rate10 <- map2_df(wild_gregs$bird, 10, test_sample_rate)
 
 rate5 <- map2_df(wild_gregs$bird, 5, test_sample_rate)
 
-rates <- rbind(rate5, rate10, rate30)
+rates <- rbind(rate5, rate10, rate20, rate30)
 
 
 rates_long <- rates %>% 
   pivot_longer(cols = contains("step"), names_to = "step.stat")
 
 rates_long %>% 
-  filter(sample.rate != 30) %>% 
+  #filter(sample.rate != 30) %>% 
+  filter(step.stat %in% c("med.step"), !bird %in% c("GREG_4", "GREG_7", "GREG_9", "GREG_11")) %>% 
 ggplot() +
   geom_point(aes(x = sample.rate, y = value)) +
-  facet_wrap(~step.stat, scales = "free")
+  ylab("Median step length (m)") +
+  xlab("GPS sampling interval") +
+  scale_y_continuous(breaks = seq(0, 1000, by = 20), labels = seq(0, 1000, by = 20)) +
+  scale_x_continuous(breaks = seq(0, 30, by = 5), labels = seq(0, 30, by = 5)) +
+  #facet_wrap(~step.stat, scales = "free") +
+  ggtitle("Median step length by\nindividual GPS tagged\ngreat egret")
   
-  
-  
-## table of wetland classification details
+  ggsave("figures/gps_interval_med_sl.png", width = 3, height = 3)
+#  
+## table of wetland classification details ----
 baari_tabs <- extract_tables("C:/Users/scott.jennings/Documents/Projects/hetp/analyses/Tomales_Great_Egret_habitat_selection_2020/derived_data/habitat/SFEI_MAPPING_STANDARDS_08092011_v8_0.pdf")
 
 
