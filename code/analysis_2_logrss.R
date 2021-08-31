@@ -7,12 +7,16 @@
 library(tidyverse)
 library(amt)
 library(lubridate)
+library(here)
 library(AICcmodavg)
 library(gridExtra)
 library(RColorBrewer)
 source("code/utility_functions.r")
 source("C:/Users/scott.jennings/Documents/Projects/R_general/utility_functions/shift_label.R")
 #greg_dat_dist <- distinct(greg_dat)
+
+wild_gregs <- wild_gregs %>% 
+  filter(!bird %in% c("GREG_4", "GREG_7", "GREG_9", "GREG_11")) # GREG_4 doesn't have enough points at all for analysis. 7, 9 and 11 don't have enough points in particular habitats (generally shellfish and subtidal) for coxph models.
 
 # read data; from analysis_1_prep_data.R ----
 
@@ -26,7 +30,7 @@ greg_steps_habitat %>%
 
 
 greg_steps_habitat <- greg_steps_habitat %>% 
-  filter(depth.end < 1)
+  filter(between(depth.end, -0.5, 1))
 # nrow = 498226
 depth_quants <- greg_steps_habitat %>% 
   data.frame() %>% 
@@ -42,8 +46,6 @@ newdat_sl_ = 128
 newdat_cos_ta_ = 0
 
 
-wild_gregs <- wild_gregs %>% 
-  filter(!bird %in% c("GREG_4", "GREG_7", "GREG_9", "GREG_11")) # GREG_4 doesn't have enough points at all for analysis. 7, 9 and 11 don't have enough points in particular habitats (generally shellfish and subtidal) for coxph models.
 
 # model fitting ----
 # starting out with objective 1, comparing relative habitat selection between habitats.
@@ -292,7 +294,7 @@ newdat_sl_ = 128
 newdat_cos_ta_ = 0
 
 make_depthvar_rss_est <- function(zbird, zdepth.end) {
-    habXdepth2 <- readRDS(paste("mod_objects/combined/", zbird, "_habXdepth2", sep = ""))
+    habXdepth2 <- readRDS(here(paste("mod_objects/combined/", zbird, "_habXdepth2", sep = "")))
 
     big_s1 <- expand.grid(depth.end = zdepth.end,
                       wetland.end = c("other.tidal", "eelgrass", "shellfish", "tidal.marsh")
@@ -317,15 +319,22 @@ lr_g1_full <- log_rss(habXdepth2, big_s1, big_s2, ci = c("se"))$df %>%
 
 }
 
-big_rss <- make_depthvar_rss_est("GREG_1", 0)
+# big_rss <- make_depthvar_rss_est("GREG_1", 0)
 
 
 wild_greg_depthvar <- expand.grid(bird = wild_gregs$bird,
-                                  depth.end = seq(-1, 1, by = 0.1)) %>% 
+                                  depth.end = seq(-0.5, 1, by = 0.1)) %>% 
   data.frame() %>% 
   mutate(bird = as.character(bird))
 
 depthvar_rss <- map2_df(wild_greg_depthvar$bird, wild_greg_depthvar$depth.end, make_depthvar_rss_est)
+
+depthvar_rss %>% 
+  filter(depth.end_x1 == 0.5, wetland.end_x1 == "shellfish") %>% 
+  mutate(rss = exp(log_rss)) %>% 
+  view()
+
+
 
 depthvar_plot <- depthvar_rss  %>% 
   rename(depth = depth.end_x1) %>% 
@@ -360,9 +369,6 @@ out_plot <- grid.arrange(shift_legend(depthvar_plot))
 
 ggsave("figures/Fig2.tiff", out_plot, width = 7, height = 5, dpi = 300)
 dev.off()
-
-
-
 
 # sanity check, see how predicted rss changes if change the habitat type in s2 ----
 make_depthvar_rss_est <- function(zbird, zdepth.end) {

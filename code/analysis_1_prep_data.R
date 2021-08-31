@@ -400,7 +400,7 @@ habitat_elevations %>%
 ggsave("figures/habitat_elevation_boxplot_all_elevations.png", width = 6, height = 6, dpi = 300)
 
 
-# depths of used and available points in each wetland type ----
+# depths of used and available points in each wetland type - THIS IS FOR S1 FIG ----
 
 habitat_depths <- readRDS("derived_data/amt_bursts/greg_steps_habitat") %>% 
           dplyr::select(case_, depth = depth.end, wetland.type = wetland.end) 
@@ -420,22 +420,31 @@ habitat_depths <- habitat_depths %>%
          wetland.label = factor(wetland.label, levels = c("Eelgrass", "Shellfish\naquaculture", "Tidal\nmarsh", "Other\ntidal")))
 
 
-
-
-
 habitat_depths %>% 
-  filter(between(depth, -1, 1)) %>% 
+  filter(between(depth, -1, 1.5)) %>% 
   ggplot() +
   geom_density(aes(x = depth, ..count.., color = data.label), bw = 0.25, size = 1) +
-  facet_wrap(~wetland.label) +
+  facet_wrap(~wetland.label, scales = "free_x") +
   theme_bw() +
   theme(legend.title = element_blank()) +
   xlab("Tide-dependent water depth (m)") +
   ylab("Number of points") +
-  scale_x_continuous(breaks = seq(-3, 3)) +
+  #scale_x_continuous(breaks = seq(-0.5, 1, by = 0.5)) +
   scale_color_brewer(palette = "Dark2")
 
 ggsave("figures/S1_Fig.tiff", width = 8, height = 5, dpi = 300)
+
+
+hab_ratios <- habitat_depths %>% 
+  data.frame() %>% 
+  filter(case_ == 0) %>% 
+  count(wetland.type) %>% 
+  mutate(ratio = n/276028) %>% 
+  rename(wetland.end_x1 = wetland.type)
+  
+
+ggplot() +
+  geom_bar(aes(x = hab_case))
 
 # area in each wetland type ----
 
