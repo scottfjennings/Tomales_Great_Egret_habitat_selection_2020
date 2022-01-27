@@ -1,6 +1,9 @@
 ---
 title: "Supplementary Tables"
-output: word_document
+output:
+  word_document: default
+  html_document:
+    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
@@ -12,6 +15,7 @@ library(tidyverse)
 library(tabulizer)
 library(here)
 library(flextable)
+library(ftExtra)
 library(officer)
 library(lubridate)
 
@@ -20,7 +24,7 @@ options(scipen = 999)
 
 flex_settings <- function(ft) {
   ft %>%   
-  select(label.id, Modnames, K, Delta_AICc, AICcWt, LL) %>% 
+  dplyr::select(label.id, Modnames, K, Delta_AICc, AICcWt, LL) %>% 
   flextable() %>% 
   set_header_labels(label.id = "Bird ID") %>%
   set_header_labels(Modnames = "model structure") %>%
@@ -56,10 +60,13 @@ Supplementary Table 1. `r table_text1` habitat selection `r table_text2`
 
 
 step1_aic <- readRDS(here("mod_objects/aic/step1_aic")) %>% 
-  mutate(Modnames = case_when(Modnames == "hab.depth2" ~ "wetland type * depth2",
-                              Modnames == "hab_depth2" ~ "wetland type + depth2",
+  mutate(Modnames = case_when(Modnames == "hab.depth2" ~ "wetland type * depth222",
+                              Modnames == "hab_depth2" ~ "wetland type + depth222",
                               Modnames == "hab" ~ "wetland type",
-                              Modnames == "depth2" ~ "depth2")) %>% 
+                              Modnames == "depth2" ~ "depth222",
+                              Modnames == "hab.depth" ~ "wetland type * depth",
+                              Modnames == "hab_depth" ~ "wetland type + depth",
+                              Modnames == "depth" ~ "depth",)) %>% 
   mutate(Delta_AICc = round(Delta_AICc, 1),
          AICcWt = round(AICcWt, 3)) %>% 
   mutate(label.id = ifelse(Delta_AICc == 0, bird, ""))
@@ -67,7 +74,7 @@ step1_aic <- readRDS(here("mod_objects/aic/step1_aic")) %>%
 
 step1_aic %>% 
   flex_settings() %>% 
-  border(i = c(5, 9, 13, 17, 21, 25), border.top = fp_border(color = "black"), part = "body")
+  border(i = c(1 + seq(7, 42, by = 7)), border.top = fp_border(color = "black"), part = "body")
   
 
 ```
@@ -80,12 +87,12 @@ Supplementary Table 2. `r table_text1` step length `r table_text2`
 ```{r}
 
 step2_aic <- readRDS(here("mod_objects/aic/step2a_aic")) %>% 
-  mutate(Modnames = case_when(Modnames == "hab.depth2" ~ "wetland type * depth2",
-                              Modnames == "hab_depth2" ~ "wetland type + depth2",
+  mutate(Modnames = case_when(Modnames == "hab.depth2" ~ "wetland type * depth222",
+                              Modnames == "hab_depth2" ~ "wetland type + depth222",
                               Modnames == "hab" ~ "wetland type",
-                              Modnames == "depth2" ~ "depth2",
+                              Modnames == "depth2" ~ "depth222",
                               Modnames == "habXsl" ~ "wetland type * step length")) %>%
-  select(bird, Modnames, K, Delta_AICc, AICcWt, LL) %>% 
+  dplyr::select(bird, Modnames, K, Delta_AICc, AICcWt, LL) %>% 
   mutate(Delta_AICc = round(Delta_AICc, 1),
          AICcWt = round(AICcWt, 3)) %>% 
   mutate(label.id = ifelse(Delta_AICc == 0, bird, ""))
