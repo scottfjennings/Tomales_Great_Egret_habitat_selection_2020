@@ -198,6 +198,7 @@ compare_mods_obj1 <- function(zbird) {
 all_aic <- map_df(wild_gregs$bird, compare_mods_obj1)
 
 saveRDS(all_aic, "mod_objects/aic/step1_aic")
+all_aic <- readRDS("mod_objects/aic/step1_aic")
 
 #view best model for each bird
 filter(all_aic, Delta_AICc == 0) %>% view()
