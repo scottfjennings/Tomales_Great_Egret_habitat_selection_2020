@@ -1,8 +1,10 @@
 # Tomales_Great_Egret_habitat_selection_2020
 Analysis of habitat selection by GPS tagged Great Egrets on Tomales Bay, CA
 
-Results of this analysis have been published here
-Jennings, S., Lumpkin, D., Warnock, N., Condeso, T.E. and Kelly, J.P., 2021. Great egret (Ardea alba) habitat selection and foraging behavior in a temperate estuary: Comparing natural wetlands to areas with shellfish aquaculture. PloS one, 16(12), p.e0261963.
+Results of this analysis have been published here  
+
+Jennings, S., Lumpkin, D., Warnock, N., Condeso, T.E. and Kelly, J.P., 2021. Great egret (Ardea alba) habitat selection and foraging behavior in a temperate estuary: Comparing natural wetlands to areas with shellfish aquaculture. PloS one, 16(12), p.e0261963.  
+
 https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0261963
 
 
