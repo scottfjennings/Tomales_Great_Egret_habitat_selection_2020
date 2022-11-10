@@ -11,13 +11,13 @@ library(here)
 library(AICcmodavg)
 library(gridExtra)
 library(RColorBrewer)
-source("code/utility_functions.r")
+source(here("code/utility_functions.R"))
 source("C:/Users/scott.jennings/Documents/Projects/R_general/utility_functions/shift_label.R")
 #greg_dat_dist <- distinct(greg_dat)
 
 wild_gregs <- wild_gregs %>% 
   filter(!bird %in% c("GREG_4", "GREG_7", "GREG_9", "GREG_11")) # GREG_4 doesn't have enough points at all for analysis. 7, 9 and 11 don't have enough points in particular habitats (generally shellfish and subtidal) for coxph models.
-
+#
 # read data; from analysis_1_prep_data.R ----
 
 greg_steps_habitat <- readRDS("derived_data/amt_bursts/greg_steps_habitat")
@@ -456,4 +456,39 @@ ggplot(mean_rss) +
   geom_line(aes(x = depth.end_x1, y = mean.log.rss, color = wetland.end_x1))
 
 
+
+
+
+
+# make plot of average selection across all animals for popular audience ----
+# uses depthvar_rss from above
+mean_depthvar_plot <- depthvar_rss  %>% 
+  rename(depth = depth.end_x1) %>% 
+  mutate(wetland.label = case_when(wetland.end_x1 == "eelgrass" ~ "Eelgrass",
+                                   wetland.end_x1 == "shellfish" ~ "Shellfish aquaculture",
+                                   wetland.end_x1 == "tidal.marsh" ~ "Tidal marsh",
+                                   wetland.end_x1 == "other.tidal" ~ "Other tidal"),
+         wetland.label = factor(wetland.label, levels = c("Eelgrass", "Shellfish aquaculture", "Tidal marsh", "Other tidal"))) %>%
+  group_by(depth, wetland.label) %>% 
+  summarise(log_rss = mean(log_rss),
+            lwr = mean(lwr),
+            upr = mean(upr)) %>% 
+  ungroup() %>% 
+  ggplot() +
+  geom_line(aes(x = depth, y = log_rss, color = wetland.label)) +
+  scale_color_brewer(name = "Wetland type",
+                       breaks = c("Eelgrass", "Shellfish aquaculture", "Tidal marsh", "Other tidal"),
+                     labels = c("Eelgrass", "Shellfish aquaculture", "Tidal marsh", "Other tidal"),
+                     palette = "Dark2") +
+  xlab("Tide-dependent water depth (m)") +
+  ylab("Average Habitat Selection Strength") +
+  theme_bw() +
+  theme(legend.position = c(0.5, 0.25),
+        legend.background = element_blank(),
+        legend.box.background = element_rect(colour = "black"))
+      
+
+
+
+ggsave(here("figures/mean_rss_fig.png"), mean_depthvar_plot, width = 7, height = 5)
 
