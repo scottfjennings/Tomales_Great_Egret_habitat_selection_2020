@@ -4,7 +4,7 @@ library(tidyverse)
 library(lubridate)
 library(move)
 
-source("C:/Users/scott.jennings/Documents/Projects/hetp/hetp_data_work/code_HETP/data_management/hetp_utility_functions.r")
+source("C:/Users/scott.jennings/Documents/Projects/core_monitoring_research/hetp/hetp_data_work/code_HETP/data_management/hetp_utility_functions.r")
 
 
 #  list of tagged bird ids
