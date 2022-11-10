@@ -143,7 +143,7 @@ tomales_dem_agg <- raster("derived_data/habitat/Marin_DEM_2019_UTM_fullres_clipt
 
 
 
-# make all cells -0.85 and deeper = NA, want to use tomales_bay_P110_2018.tif values for those cells, but where elevation > -0.85, want to use whichever value is higher b/w tomales_bay_P110_2018.tif and tomales_dem_agg
+# make all cells 0 and deeper = NA, want to use tomales_bay_P110_2018.tif values for those cells, but where elevation > 0, want to use whichever value is higher b/w tomales_bay_P110_2018.tif and tomales_dem_agg
 tomales_dem_agg[tomales_dem_agg < 0] <- NA
 
 
